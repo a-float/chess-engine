@@ -1,0 +1,4 @@
+# Chess engine
+
+A chess engine based on my reading of "Chess Algorithms" by Noah Caplinger
+Written for my own enjoyment and learning of both chess and Rust.
