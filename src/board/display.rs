@@ -30,10 +30,8 @@ impl Display for Board {
             board_str.push_str(&format!("{} ", rank + 1));
             for file in 0..8 {
                 let square = Square { rank, file };
-                if let Some(piece) = self.get_piece(square) {
-                    board_str.push(piece.to_char());
-                    board_str.push(' ');
-                }
+                board_str.push(self.get_piece(square).map_or(' ', |p| p.to_char()));
+                board_str.push(' ');
             }
             board_str.push('\n');
         }
