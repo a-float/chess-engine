@@ -37,7 +37,7 @@ const QUEEN_OFFSETS: [(i8, i8); 8] = [
     (0, 1),
 ];
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Move {
     pub from: Square,
     pub to: Square,

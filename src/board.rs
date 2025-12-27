@@ -54,4 +54,38 @@ impl Board {
         }
         moves
     }
+
+    pub fn apply_move(&mut self, m: &Move) {
+        if m.piece.get_color() == Color::Black {
+            self.fullmove_number += 1;
+        }
+        self.set_piece(m.to, Some(m.piece));
+        self.set_piece(m.from, None);
+    }
+
+    pub fn undo_move(&mut self, m: &Move) {
+        if m.piece.get_color() == Color::Black {
+            self.fullmove_number -= 1;
+        }
+        self.set_piece(m.from, Some(m.piece));
+        self.set_piece(m.to, m.capture);
+    }
+
+    pub fn get_legal_move_from_string(&self, s: &str) -> Option<Move> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 2 {
+            return None;
+        }
+
+        let from = Square::from_string(parts[0])?;
+        let to = Square::from_string(parts[1])?;
+
+        let mut all_moves = self.get_moves_for_color(Color::White);
+        all_moves.extend(self.get_moves_for_color(Color::Black));
+
+        all_moves
+            .iter()
+            .find(|m| m.from == from && m.to == to)
+            .copied()
+    }
 }
