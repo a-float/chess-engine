@@ -1,33 +1,43 @@
 mod board;
 mod r#move;
+mod search;
+use board::Board;
 use std::io;
 
-use board::Board;
-
-use crate::{board::piece::Color, r#move::Move};
+use crate::{board::piece::Color, search::Search};
 
 fn main() {
     let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     let mut board = Board::from_fen(fen);
-    
+
     println!("{}", board);
     let mut buffer = String::new();
     let stdin = io::stdin();
     loop {
-        println!("Your move (e.g. e4 e5):");
+        if !board.is_white_turn {
+            let m = Search::random_move(&board);
+            if m.is_none() {
+                println!("Black has no moves: White wins");
+                break;
+            }
+            board.apply_move(&m.unwrap());
+            println!("\n{}", board);
+            continue;
+        }
+        println!("Your move (e.g. e2 e4):");
         buffer.clear();
         match stdin.read_line(&mut buffer) {
             Err(e) => {
                 println!("Error: {}", e);
                 break;
             }
-            Ok(read) => {
+            Ok(_read) => {
                 let line = buffer.trim();
                 if line.is_empty() {
                     continue;
                 }
                 // println!("You typed: {} of size {}", line, read);
-                if line == "q" {
+                if line == ":q" {
                     println!("Quitting");
                     break;
                 }

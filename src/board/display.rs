@@ -1,6 +1,5 @@
-use crate::board::{piece::Piece, square::Square};
-
 use super::Board;
+use crate::board::square::Square;
 use std::fmt::{Display, Formatter};
 
 impl Display for Board {
