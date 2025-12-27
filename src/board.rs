@@ -55,11 +55,16 @@ impl Board {
         moves
     }
 
+    fn toggle_active_color(&mut self) {
+        self.is_white_turn = !self.is_white_turn;
+    }
+
     pub fn apply_move(&mut self, m: &Move) {
         if m.piece.get_color() == Color::Black {
             self.fullmove_number += 1;
         }
-        self.set_piece(m.to, Some(m.piece));
+        self.toggle_active_color();
+        self.set_piece(m.to, m.promotion.or(Some(m.piece)));
         self.set_piece(m.from, None);
     }
 
@@ -67,7 +72,8 @@ impl Board {
         if m.piece.get_color() == Color::Black {
             self.fullmove_number -= 1;
         }
-        self.set_piece(m.from, Some(m.piece));
+        self.toggle_active_color();
+        self.set_piece(m.from, m.promotion.or(Some(m.piece)));
         self.set_piece(m.to, m.capture);
     }
 

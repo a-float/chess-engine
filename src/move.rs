@@ -103,6 +103,87 @@ fn get_moves_at_offsets(board: &Board, square: Square, offsets: Vec<(i8, i8)>) -
     moves
 }
 
+fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> {
+    let mut moves = Vec::new();
+    let dir = match piece.get_color() {
+        Color::White => 1,
+        Color::Black => -1,
+    };
+    let forward_square_option = square.offset(0, dir);
+    if let Some(forward_square) = forward_square_option
+        && board.is_square_empty(forward_square)
+    {
+        moves.push(Move {
+            from: square,
+            to: forward_square,
+            promotion: None,
+            capture: None,
+            piece,
+        });
+
+        // double move
+        if (dir < 0 && square.rank == 6) || (dir > 0 && square.rank == 1) {
+            let double_forward_square_option = square.offset(0, dir * 2);
+            if let Some(double_forward_square) = double_forward_square_option
+                && board.is_square_empty(double_forward_square)
+            {
+                moves.push(Move {
+                    from: square,
+                    to: double_forward_square,
+                    promotion: None,
+                    capture: None,
+                    piece,
+                });
+            }
+        }
+    }
+    let attack_offsets = [(-1, dir), (1, dir)];
+    for attack_square in attack_offsets
+        .iter()
+        .map(|(file_delta, rank_delta)| square.offset(*file_delta, *rank_delta))
+        .filter(|o| o.is_some())
+        .map(|o| o.unwrap())
+    {
+        let other_piece_option = board.get_piece(attack_square);
+        if let Some(other_piece) = other_piece_option
+            && other_piece.get_color() != piece.get_color()
+        {
+            moves.push(Move {
+                from: square,
+                to: attack_square,
+                promotion: None,
+                capture: other_piece_option,
+                piece,
+            });
+        }
+    }
+
+    return moves
+        .iter()
+        .flat_map(|m| {
+            if m.to.rank == 0 || m.to.rank == 7 {
+                [
+                    PieceKind::Queen,
+                    PieceKind::Rook,
+                    PieceKind::Bishop,
+                    PieceKind::Knight,
+                ]
+                .iter()
+                .map(|&kind| Move {
+                    from: m.from,
+                    to: m.to,
+                    promotion: Some(Piece::new(piece.get_color(), kind)),
+                    capture: m.capture,
+                    piece,
+                })
+                .collect::<Vec<_>>()
+            } else {
+                vec![*m]
+            }
+        })
+        .collect();
+}
+
 pub fn get_moves_for_piece(board: &Board, square: Square) -> Vec<Move> {
     let mut moves = Vec::new();
     let piece_option = board.get_piece(square);
@@ -114,42 +195,7 @@ pub fn get_moves_for_piece(board: &Board, square: Square) -> Vec<Move> {
     let kind = piece.get_kind();
 
     if kind == PieceKind::Pawn {
-        let dir = match piece.get_color() {
-            Color::White => 1,
-            Color::Black => -1,
-        };
-        let forward_square_option = square.offset(0, dir);
-        if let Some(forward_square) = forward_square_option
-            && board.is_square_empty(forward_square)
-        {
-            moves.push(Move {
-                from: square,
-                to: forward_square,
-                promotion: None,
-                capture: None,
-                piece,
-            });
-        }
-        let attack_offsets = [(-1, dir), (1, dir)];
-        for attack_square in attack_offsets
-            .iter()
-            .map(|(file_delta, rank_delta)| square.offset(*file_delta, *rank_delta))
-            .filter(|o| o.is_some())
-            .map(|o| o.unwrap())
-        {
-            let other_piece_option = board.get_piece(attack_square);
-            if let Some(other_piece) = other_piece_option
-                && other_piece.get_color() != piece.get_color()
-            {
-                moves.push(Move {
-                    from: square,
-                    to: attack_square,
-                    promotion: None,
-                    capture: other_piece_option,
-                    piece,
-                });
-            }
-        }
+        moves.extend(get_moves_for_pawn(board, square, piece));
     }
 
     if kind == PieceKind::Knight {

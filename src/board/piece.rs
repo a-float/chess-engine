@@ -21,7 +21,7 @@ pub struct Piece {
 }
 
 impl Piece {
-    const fn new(color: Color, kind: PieceKind) -> Piece {
+    pub const fn new(color: Color, kind: PieceKind) -> Piece {
         Piece { color, kind }
     }
 
