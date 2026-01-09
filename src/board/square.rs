@@ -15,9 +15,13 @@ impl Square {
             return None;
         }
         let lowercase = s.to_ascii_uppercase();
-        let file = lowercase.chars().nth(0).unwrap() as u32 - 'A' as u32;
-        let rank = lowercase.chars().nth(1).unwrap() as u32 - '1' as u32;
+        let file = lowercase.chars().nth(0).unwrap() as i8 - 'A' as i8;
+        let rank = lowercase.chars().nth(1).unwrap() as i8 - '1' as i8;
 
+        Square::new(file, rank)
+    }
+
+    pub fn new(file: i8, rank: i8) -> Option<Square> {
         if (0..8).contains(&file) && (0..8).contains(&rank) {
             Some(Square {
                 file: file as u8,
@@ -47,14 +51,7 @@ impl Square {
         let new_file = self.file as i8 + file_delta;
         let new_rank = self.rank as i8 + rank_delta;
 
-        if (0..8).contains(&new_file) && (0..8).contains(&new_rank) {
-            Some(Square {
-                file: new_file as u8,
-                rank: new_rank as u8,
-            })
-        } else {
-            None
-        }
+        Square::new(new_file, new_rank)
     }
 }
 
