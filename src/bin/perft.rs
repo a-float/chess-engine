@@ -19,7 +19,7 @@ fn perft(depth: u8, board: &mut Board) -> usize {
     }
 }
 
-static EXPECTED: [usize; 7] = [1, 20, 400, 8902, 197_281, 4_865_609, 119_060_324];
+static EXPECTED: [usize; 9] = [1, 20, 400, 8902, 197_281, 4_865_609, 119_060_324, 3_195_901_860, 84_998_978_956];
 
 fn main() {
     let args: Vec<String> = env::args().collect();
