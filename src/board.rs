@@ -2,6 +2,7 @@ mod display;
 mod fen;
 pub mod piece;
 pub mod square;
+
 use crate::{
     board::{
         piece::{Color, Piece},
@@ -12,7 +13,7 @@ use crate::{
 
 pub type SquareArray = [Option<Piece>; 64];
 
-#[derive(Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct CastlingRights {
     pub white_king_side: bool,
     pub white_queen_side: bool,
@@ -20,6 +21,7 @@ pub struct CastlingRights {
     pub black_queen_side: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Board {
     squares: SquareArray,
     pub is_white_turn: bool,
@@ -27,6 +29,12 @@ pub struct Board {
     pub castling_rights: CastlingRights,
     pub halfmove_clock: u16,
     pub fullmove_number: u16,
+}
+
+impl Default for Board {
+    fn default() -> Board {
+        Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+    }
 }
 
 impl Board {
@@ -40,6 +48,18 @@ impl Board {
 
     pub fn is_square_empty(&self, square: Square) -> bool {
         self.get_piece(square).is_none()
+    }
+
+    pub fn get_active_color(&self) -> Color {
+        if self.is_white_turn {
+            Color::White
+        } else {
+            Color::Black
+        }
+    }
+
+    pub fn get_moves(&self) -> Vec<Move> {
+        self.get_moves_for_color(self.get_active_color())
     }
 
     pub fn get_moves_for_color(&self, color: Color) -> Vec<Move> {
