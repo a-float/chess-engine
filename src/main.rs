@@ -74,7 +74,7 @@ impl App {
             {
                 let new_square = Square::new(
                     mouse_event.column as i8 / 5 - 1,
-                    (mouse_event.row / 2) as i8,
+                    7 - (mouse_event.row / 2) as i8,
                 );
 
                 if new_square.is_none() {
@@ -170,7 +170,7 @@ impl App {
                         .merge_borders(MergeStrategy::Exact),
                 )
                 .centered()
-                .render(cells[y][0], buf)
+                .render(cells[7 - y][0], buf)
         }
 
         for x in 0..8 {
@@ -186,7 +186,7 @@ impl App {
 
         for y in 0..8 {
             for x in 0..8 {
-                let square = Square::from_index((y * 8 + x) as u8).unwrap();
+                let square = Square::from_index(((7 - y) * 8 + x) as u8).unwrap();
 
                 let cell = cells[y as usize][(x + 1) as usize];
                 let text = self.get_content_for_square(square);
