@@ -13,7 +13,7 @@ use crate::{
 
 pub type SquareArray = [Option<Piece>; 64];
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct CastlingRights {
     pub white_king_side: bool,
     pub white_queen_side: bool,

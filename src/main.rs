@@ -269,6 +269,8 @@ impl App {
                 "Castling: ".into(),
                 self.board.get_casting_str().bold(),
             ]),
+            Line::from(""),
+            Line::from(vec!["Fen: ".into(), self.board.to_fen().bold()]),
         ];
 
         if let Some(ep_square) = game_state.en_passant_square {

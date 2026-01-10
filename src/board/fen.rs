@@ -1,4 +1,8 @@
-use crate::board::{CastlingRights, GameState, piece::Piece};
+use crate::board::{
+    CastlingRights, GameState,
+    piece::{Color, Piece},
+    square::Square,
+};
 
 use super::{Board, SquareArray};
 
@@ -54,17 +58,77 @@ impl Board {
         let piece_placement = groups[0];
         let active_color = groups[1];
         let castling_rights = groups[2];
+        let en_passant_square = match groups[3] {
+            "-" => None,
+            s => Square::from_string(s),
+        };
+        let halfmove_clock: u16 = groups[4].parse().unwrap();
+        let fullmove_number: u16 = groups[5].parse().unwrap();
 
         return Board {
             squares: read_pieces(piece_placement),
             is_white_turn: active_color == "w",
-            fullmove_number: 1,
+            fullmove_number,
             state_history: vec![GameState {
                 castling_rights: read_castling_rights(castling_rights),
-                en_passant_square: None,
-                halfmove_clock: 0,
+                en_passant_square,
+                halfmove_clock,
             }],
         };
+    }
+
+    pub fn to_fen(&self) -> String {
+        let mut fen_str = String::new();
+        let mut streak = 0;
+        for idx in 0..64 {
+            let square = Square::from_index(idx).unwrap();
+            let piece = self.get_piece(square);
+            if piece.is_none() {
+                streak += 1;
+            } else {
+                if streak > 0 {
+                    fen_str.push_str(&format!("{}", streak));
+                    streak = 0;
+                }
+                let char = FEN_CHARS
+                    .iter()
+                    .find(|(_, p)| p == &piece.unwrap())
+                    .unwrap()
+                    .0;
+                fen_str.push(char);
+            }
+            if (idx + 1) % 8 == 0 {
+                if streak > 0 {
+                    fen_str.push_str(&format!("{}", streak));
+                    streak = 0;
+                }
+                if idx != 63 {
+                    fen_str.push('/');
+                }
+            }
+        }
+
+        fen_str.push_str(match self.get_active_color() {
+            Color::White => " w",
+            Color::Black => " b",
+        });
+
+        fen_str.push_str(&format!(" {} ", self.get_casting_str()));
+
+        let game_state = self.get_game_state();
+
+        fen_str.push_str(
+            &game_state
+                .en_passant_square
+                .map_or_else(|| "-".to_string(), |sq| format!("{}", sq)),
+        );
+
+        fen_str.push_str(&format!(
+            " {} {}",
+            game_state.halfmove_clock, self.fullmove_number
+        ));
+
+        fen_str
     }
 }
 
@@ -104,5 +168,36 @@ mod tests {
         assert_eq!(board_array[61], Some(Piece::BLACK_BISHOP));
         assert_eq!(board_array[62], Some(Piece::BLACK_KNIGHT));
         assert_eq!(board_array[63], Some(Piece::BLACK_ROOK));
+    }
+
+    #[test]
+    fn test_read_castling() {
+        let rights = read_castling_rights("KQq");
+        assert_eq!(
+            rights,
+            CastlingRights {
+                black_king_side: false,
+                black_queen_side: true,
+                white_king_side: true,
+                white_queen_side: true,
+            }
+        )
+    }
+
+    #[test]
+    fn test_read_game_state() {
+        let board =
+            Board::from_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2");
+
+        assert_eq!(board.fullmove_number, 2);
+        assert_eq!(board.get_game_state().en_passant_square, Square::new(2, 5));
+        assert_eq!(board.get_game_state().halfmove_clock, 0);
+    }
+
+    #[test]
+    fn test_write_to_fen() {
+        let fen = "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2";
+        let board = Board::from_fen(fen);
+        assert_eq!(board.to_fen(), fen)
     }
 }
