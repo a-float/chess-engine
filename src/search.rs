@@ -1,7 +1,4 @@
-use crate::{
-    board::{Board, piece::Color},
-    r#move::Move,
-};
+use crate::{board::Board, r#move::Move};
 use rand::{rng, seq::IndexedRandom};
 
 pub struct Search {}
