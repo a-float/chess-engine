@@ -8,11 +8,7 @@ pub struct Search {}
 
 impl Search {
     pub fn random_move(board: &Board) -> Option<Move> {
-        let active_color = if board.is_white_turn {
-            Color::White
-        } else {
-            Color::Black
-        };
+        let active_color = board.get_active_color();
         let mut rng = rng();
         let moves = board.get_moves_for_color(active_color);
         moves.choose(&mut rng).copied()

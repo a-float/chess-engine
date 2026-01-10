@@ -44,6 +44,7 @@ pub struct Move {
     pub promotion: Option<Piece>,
     pub capture: Option<Piece>,
     pub piece: Piece,
+    pub en_passant_square: Option<Square>,
 }
 
 fn get_moves_in_line(board: &Board, square: Square, directions: Vec<(i8, i8)>) -> Vec<Move> {
@@ -61,6 +62,7 @@ fn get_moves_in_line(board: &Board, square: Square, directions: Vec<(i8, i8)>) -
                         promotion: None,
                         capture: Some(other_piece),
                         piece,
+                        en_passant_square: None,
                     });
                 }
                 break;
@@ -71,6 +73,7 @@ fn get_moves_in_line(board: &Board, square: Square, directions: Vec<(i8, i8)>) -
                     promotion: None,
                     capture: None,
                     piece,
+                    en_passant_square: None,
                 });
             }
             target_square_option = target_square.offset(*file_delta, *rank_delta);
@@ -97,6 +100,7 @@ fn get_moves_at_offsets(board: &Board, square: Square, offsets: Vec<(i8, i8)>) -
                 promotion: None,
                 capture: other_piece,
                 piece: piece.unwrap(),
+                en_passant_square: None,
             });
         }
     }
@@ -119,6 +123,7 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
             promotion: None,
             capture: None,
             piece,
+            en_passant_square: None,
         });
 
         // double move
@@ -133,6 +138,7 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
                     promotion: None,
                     capture: None,
                     piece,
+                    en_passant_square: Some(forward_square),
                 });
             }
         }
@@ -154,6 +160,7 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
                 promotion: None,
                 capture: other_piece_option,
                 piece,
+                en_passant_square: None,
             });
         }
     }
@@ -175,6 +182,7 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
                     promotion: Some(Piece::new(piece.get_color(), kind)),
                     capture: m.capture,
                     piece,
+                    en_passant_square: None,
                 })
                 .collect::<Vec<_>>()
             } else {
@@ -256,6 +264,7 @@ mod tests {
                 promotion: None,
                 capture: None,
                 piece: Piece::WHITE_PAWN,
+                en_passant_square: None
             }));
         assert!(moves.iter().any(|m| m
             == &Move {
@@ -264,6 +273,7 @@ mod tests {
                 promotion: None,
                 capture: Some(Piece::BLACK_PAWN),
                 piece: Piece::WHITE_PAWN,
+                en_passant_square: None
             }));
     }
 

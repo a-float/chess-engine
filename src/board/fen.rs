@@ -1,4 +1,4 @@
-use crate::board::{CastlingRights, piece::Piece};
+use crate::board::{CastlingRights, GameState, piece::Piece};
 
 use super::{Board, SquareArray};
 
@@ -58,10 +58,12 @@ impl Board {
         return Board {
             squares: read_pieces(piece_placement),
             is_white_turn: active_color == "w",
-            castling_rights: read_castling_rights(castling_rights),
-            en_passant_square: None,
-            halfmove_clock: 0,
             fullmove_number: 1,
+            state_history: vec![GameState {
+                castling_rights: read_castling_rights(castling_rights),
+                en_passant_square: None,
+                halfmove_clock: 0,
+            }],
         };
     }
 }

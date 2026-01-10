@@ -22,13 +22,18 @@ pub struct CastlingRights {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Board {
-    squares: SquareArray,
-    pub is_white_turn: bool,
+pub struct GameState {
     pub en_passant_square: Option<Square>,
     pub castling_rights: CastlingRights,
     pub halfmove_clock: u16,
+}
+
+#[derive(Debug, Clone)]
+pub struct Board {
+    squares: SquareArray,
+    is_white_turn: bool,
     pub fullmove_number: u16,
+    state_history: Vec<GameState>,
 }
 
 impl Default for Board {
@@ -56,6 +61,10 @@ impl Board {
         } else {
             Color::Black
         }
+    }
+
+    pub fn get_game_state(&self) -> &GameState {
+        return self.state_history.last().unwrap();
     }
 
     pub fn get_moves(&self) -> Vec<Move> {
@@ -86,6 +95,17 @@ impl Board {
         self.toggle_active_color();
         self.set_piece(m.to, m.promotion.or(Some(m.piece)));
         self.set_piece(m.from, None);
+
+        let prev_state = self.get_game_state();
+        self.state_history.push(GameState {
+            en_passant_square: m.en_passant_square,
+            castling_rights: prev_state.castling_rights,
+            halfmove_clock: if m.capture.is_some() {
+                0
+            } else {
+                prev_state.halfmove_clock + 1
+            },
+        });
     }
 
     pub fn undo_move(&mut self, m: &Move) {
@@ -95,6 +115,7 @@ impl Board {
         self.toggle_active_color();
         self.set_piece(m.from, m.promotion.or(Some(m.piece)));
         self.set_piece(m.to, m.capture);
+        self.state_history.pop();
     }
 
     pub fn get_legal_move_from_string(&self, s: &str) -> Option<Move> {
