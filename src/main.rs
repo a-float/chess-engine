@@ -3,7 +3,10 @@ mod r#move;
 mod search;
 use board::Board;
 
-use std::io::{self, Error, stdout};
+use std::{
+    cell::Cell,
+    io::{self, Error, stdout},
+};
 
 use ratatui::{
     buffer::Buffer,
@@ -11,12 +14,12 @@ use ratatui::{
         ExecutableCommand,
         event::{
             self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
-            MouseEventKind,
+            MouseEvent, MouseEventKind,
         },
     },
-    layout::{Constraint, Layout, Rect, Spacing},
+    layout::{Constraint, Layout, Position, Rect, Spacing},
     style::{Color, Style, Stylize},
-    symbols::merge::MergeStrategy,
+    symbols::{border, merge::MergeStrategy},
     text::Line,
     widgets::{Block, Padding, Paragraph, Widget},
     *,
@@ -27,12 +30,25 @@ use crate::{
     r#move::{Move, get_moves_for_piece},
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct App {
     board: Board,
     active_square: Option<Square>,
     possible_moves: Vec<Move>,
     exit: bool,
+    board_area: Cell<Rect>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            board: Board::default(),
+            active_square: None,
+            possible_moves: Vec::new(),
+            exit: false,
+            board_area: Cell::new(Rect::default()),
+        }
+    }
 }
 
 impl App {
@@ -62,6 +78,47 @@ impl App {
         }
     }
 
+    fn handle_board_click(&mut self, mouse_event: MouseEvent) -> () {
+        let board_area = self.board_area.get();
+        let square_width = 5;
+        let square_height = 2;
+        let new_square = Square::new(
+            ((mouse_event.column - board_area.x) / square_width) as i8 - 1,
+            7 - ((mouse_event.row - board_area.y) / square_height) as i8,
+        );
+
+        if new_square.is_none() {
+            self.active_square = None;
+            self.possible_moves.clear();
+            return;
+        }
+
+        let piece = self.board.get_piece(new_square.unwrap());
+
+        let end_move = self
+            .possible_moves
+            .iter()
+            .find(|m| m.to == new_square.unwrap());
+
+        self.active_square = if new_square == self.active_square
+            || end_move.is_none() && piece.is_none()
+            || piece.is_some_and(|p| p.get_color() != self.board.get_active_color())
+        {
+            None
+        } else {
+            new_square
+        };
+
+        if end_move.is_some() {
+            self.board.apply_move(end_move.unwrap());
+            self.active_square = None;
+        }
+
+        self.possible_moves = self.active_square.map_or(Vec::new(), |square| {
+            get_moves_for_piece(&self.board, square)
+        });
+    }
+
     fn handle_events(&mut self) -> io::Result<()> {
         match event::read()? {
             // it's important to check that the event is a key press event as
@@ -72,38 +129,13 @@ impl App {
             Event::Mouse(mouse_event)
                 if mouse_event.kind == MouseEventKind::Up(event::MouseButton::Left) =>
             {
-                let new_square = Square::new(
-                    mouse_event.column as i8 / 5 - 1,
-                    7 - (mouse_event.row / 2) as i8,
-                );
-
-                if new_square.is_none() {
-                    self.active_square = None;
-                    self.possible_moves.clear();
-                    return Ok(());
+                if self
+                    .board_area
+                    .get()
+                    .contains(Position::new(mouse_event.column, mouse_event.row))
+                {
+                    self.handle_board_click(mouse_event);
                 }
-
-                let piece = self.board.get_piece(new_square.unwrap());
-                let end_move = self
-                    .possible_moves
-                    .iter()
-                    .find(|m| m.to == new_square.unwrap());
-
-                self.active_square =
-                    if new_square == self.active_square || end_move.is_none() && piece.is_none() {
-                        None
-                    } else {
-                        new_square
-                    };
-
-                if end_move.is_some() {
-                    self.board.apply_move(end_move.unwrap());
-                    self.active_square = None;
-                }
-
-                self.possible_moves = self.active_square.map_or(Vec::new(), |square| {
-                    get_moves_for_piece(&self.board, square)
-                });
             }
             _ => {}
         };
@@ -121,7 +153,8 @@ impl App {
 
     fn get_style_for_square(&self, square: Square) -> Style {
         let dest_move = self.possible_moves.iter().find(|m| m.to == square);
-        let piece = self.active_square.and_then(|s| self.board.get_piece(s));
+        let piece = self.board.get_piece(square);
+        let active_piece = self.active_square.and_then(|s| self.board.get_piece(s));
 
         match square {
             _ if dest_move.is_some() && dest_move.unwrap().capture.is_some() => {
@@ -130,8 +163,14 @@ impl App {
             _ if dest_move.is_some() => {
                 App::get_active_style_for_side(dest_move.unwrap().piece.get_color())
             }
-            sq if self.active_square == Some(sq) && piece.is_some() => {
-                App::get_active_style_for_side(piece.unwrap().get_color())
+            sq if self.active_square == Some(sq) && active_piece.is_some() => {
+                App::get_active_style_for_side(active_piece.unwrap().get_color())
+            }
+            _ if piece.is_some() && piece.unwrap().get_color() == piece::Color::Black => {
+                Style::default().fg(Color::Rgb(196, 196, 196))
+            }
+            _ if piece.is_some() && piece.unwrap().get_color() == piece::Color::White => {
+                Style::default().fg(Color::Rgb(232, 232, 232))
             }
             _ => Style::default(),
         }
@@ -200,41 +239,96 @@ impl App {
             }
         }
     }
+
+    fn render_game_state(&self, area: Rect, buf: &mut Buffer) {
+        let game_state = self.board.get_game_state();
+
+        let (turn_symbol, turn_text, turn_bg_color, turn_fg_color) =
+            if self.board.get_active_color() == piece::Color::White {
+                ("♚", "White", Color::Rgb(240, 240, 240), Color::Black)
+            } else {
+                ("♔", "Black", Color::Rgb(50, 50, 50), Color::White)
+            };
+
+        let mut lines = vec![
+            Line::from(vec![
+                format!("{}  {}", turn_symbol, turn_text).bold(),
+                " to move".into(),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                "Move: ".into(),
+                format!("{}", self.board.fullmove_number).bold(),
+            ]),
+            Line::from(vec![
+                "Halfmove clock: ".into(),
+                format!("{}", game_state.halfmove_clock).bold(),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                "Castling: ".into(),
+                self.board.get_casting_str().bold(),
+            ]),
+        ];
+
+        if let Some(ep_square) = game_state.en_passant_square {
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                "En passant: ".into(),
+                format!("{}", ep_square).bold(),
+            ]));
+        }
+
+        if let Some(active_sq) = self.active_square {
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                "Selected: ".into(),
+                format!("{}", active_sq).yellow().bold(),
+            ]));
+            lines.push(Line::from(vec![
+                "Possible moves: ".into(),
+                format!("{}", self.possible_moves.len()).cyan().bold(),
+            ]));
+        }
+
+        Paragraph::new(lines)
+            .block(
+                Block::bordered()
+                    .title("Game State")
+                    .padding(Padding::uniform(1)),
+            )
+            .render(area, buf);
+    }
 }
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let horizontal = Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]);
+        let horizontal = Layout::horizontal([Constraint::Length(48), Constraint::Fill(1)]);
         let [left_area, right_area] = horizontal.areas(area);
-        // let vertical = Layout::vertical([Constraint::Length(20), Constraint::Fill(1)]);
-        // let [top_area, bottom_area] = vertical.areas(left_area);
+        let vertical = Layout::vertical([Constraint::Length(48), Constraint::Fill(1)]);
+        let [top_area, bottom_area] = vertical.areas(left_area);
 
         let title = Line::from(" Chess ".bold());
-        // let block = Block::bordered()
-        //     .title(title.centered())
-        //     .border_set(border::THICK);
 
-        // let counter_text = Text::from(vec![Line::from(vec![
-        //     "Value: ".into(),
-        //     self.counter.to_string().yellow(),
-        // ])]);
+        let board_wrapper = Block::new().padding(Padding::top(1));
+        let board_area = board_wrapper.inner(left_area);
+        self.board_area.set(board_area);
 
-        // Paragraph::new("This is text")
-        //     .centered()
-        //     .render(right_area, buf);
+        board_wrapper.render(top_area, buf);
 
-        self.render_board(left_area, buf);
+        self.render_board(board_area, buf);
 
-        // Block::bordered()
-        //     .title_top(title.centered())
-        //     .border_set(border::THICK)
-        //     .padding(Padding::symmetric(16, 24))
-        //     .render(right_area, buf);
+        self.render_game_state(right_area, buf);
+
+        Block::bordered()
+            .title_top(title.centered())
+            .border_set(border::THICK)
+            .padding(Padding::symmetric(1, 1))
+            .render(area, buf);
     }
 }
 
 fn main() -> Result<(), Error> {
-    // color_eyre::install()?;
     let mut terminal = ratatui::init();
     let app_result = App::default().run(&mut terminal);
     ratatui::restore();
