@@ -14,6 +14,15 @@ pub enum Color {
     Black,
 }
 
+impl Color {
+    pub fn opposite(&self) -> Color {
+        match *self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Piece {
     color: Color,

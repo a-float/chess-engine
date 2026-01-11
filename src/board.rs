@@ -97,7 +97,7 @@ impl Board {
         self.set_piece(m.from, None);
 
         let prev_state = self.get_game_state();
-        self.state_history.push(GameState {
+        let mut new_game_state = GameState {
             en_passant_square: m.en_passant_square,
             castling_rights: prev_state.castling_rights,
             halfmove_clock: if m.capture.is_some() {
@@ -105,7 +105,16 @@ impl Board {
             } else {
                 prev_state.halfmove_clock + 1
             },
-        });
+        };
+
+        if let Some(sq) = m.en_passant_square
+            && m.capture.is_some()
+        {
+            self.set_piece(sq, None);
+            new_game_state.en_passant_square = None;
+        }
+
+        self.state_history.push(new_game_state);
     }
 
     pub fn undo_move(&mut self, m: &Move) {
@@ -114,7 +123,14 @@ impl Board {
         }
         self.toggle_active_color();
         self.set_piece(m.from, m.promotion.or(Some(m.piece)));
-        self.set_piece(m.to, m.capture);
+        if let Some(sq) = m.en_passant_square
+            && m.capture.is_some()
+        {
+            self.set_piece(m.to, None);
+            self.set_piece(sq, m.capture);
+        } else {
+            self.set_piece(m.to, m.capture);
+        }
         self.state_history.pop();
     }
 

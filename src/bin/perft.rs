@@ -23,6 +23,9 @@ fn perft(depth: u8, res: &mut Results, board: &mut Board) {
             if m.capture.is_some() {
                 res.captures += 1;
             }
+            if m.capture.is_some() && m.en_passant_square.is_some() {
+                res.en_passants += 1;
+            }
         } else {
             board.apply_move(&m);
             perft(depth - 1, res, board);

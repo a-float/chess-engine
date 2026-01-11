@@ -151,13 +151,20 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
         .filter(|o| o.is_some())
         .map(|o| o.unwrap())
     {
-        let other_piece_option = board.get_piece(attack_square);
-        if let Some(other_piece) = other_piece_option
+        if let Some(other_piece) = board.get_piece(attack_square)
             && other_piece.get_color() != piece.get_color()
         {
+            moves.push(Move::new(square, attack_square, piece).with_capture(other_piece));
+        }
+
+        // en passant
+        // if both capture and en_passant_square are set, the en_passant square points to captured pawn
+        if Some(attack_square) == board.get_game_state().en_passant_square {
             moves.push(
-                Move::new(square, attack_square, piece).with_capture_option(other_piece_option),
-            );
+                Move::new(square, attack_square, piece)
+                    .with_capture(Piece::new(piece.get_color().opposite(), PieceKind::Pawn))
+                    .with_en_passant_square(attack_square.offset(0, -dir).unwrap()),
+            )
         }
     }
 
