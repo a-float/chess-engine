@@ -47,6 +47,39 @@ pub struct Move {
     pub en_passant_square: Option<Square>,
 }
 
+impl Move {
+    fn new(from: Square, to: Square, piece: Piece) -> Self {
+        Self {
+            from,
+            to,
+            piece,
+            capture: None,
+            en_passant_square: None,
+            promotion: None,
+        }
+    }
+
+    fn with_capture(&mut self, capture: Piece) -> Self {
+        self.capture = Some(capture);
+        *self
+    }
+
+    fn with_capture_option(&mut self, capture: Option<Piece>) -> Self {
+        self.capture = capture;
+        *self
+    }
+
+    fn with_promotion(&mut self, promotion: Piece) -> Self {
+        self.promotion = Some(promotion);
+        *self
+    }
+
+    fn with_en_passant_square(&mut self, en_passant_square: Square) -> Self {
+        self.en_passant_square = Some(en_passant_square);
+        *self
+    }
+}
+
 fn get_moves_in_line(board: &Board, square: Square, directions: Vec<(i8, i8)>) -> Vec<Move> {
     let mut moves: Vec<Move> = Vec::new();
     let piece = board.get_piece(square).unwrap();
@@ -56,25 +89,11 @@ fn get_moves_in_line(board: &Board, square: Square, directions: Vec<(i8, i8)>) -
         while let Some(target_square) = target_square_option {
             if let Some(other_piece) = board.get_piece(target_square) {
                 if other_piece.get_color() != piece.get_color() {
-                    moves.push(Move {
-                        from: square,
-                        to: target_square,
-                        promotion: None,
-                        capture: Some(other_piece),
-                        piece,
-                        en_passant_square: None,
-                    });
+                    moves.push(Move::new(square, target_square, piece).with_capture(other_piece));
                 }
                 break;
             } else {
-                moves.push(Move {
-                    from: square,
-                    to: target_square,
-                    promotion: None,
-                    capture: None,
-                    piece,
-                    en_passant_square: None,
-                });
+                moves.push(Move::new(square, target_square, piece));
             }
             target_square_option = target_square.offset(*file_delta, *rank_delta);
         }
@@ -84,7 +103,7 @@ fn get_moves_in_line(board: &Board, square: Square, directions: Vec<(i8, i8)>) -
 
 fn get_moves_at_offsets(board: &Board, square: Square, offsets: Vec<(i8, i8)>) -> Vec<Move> {
     let mut moves: Vec<Move> = Vec::new();
-    let piece = board.get_piece(square);
+    let piece = board.get_piece(square).unwrap();
 
     for target_square in offsets
         .iter()
@@ -92,16 +111,11 @@ fn get_moves_at_offsets(board: &Board, square: Square, offsets: Vec<(i8, i8)>) -
         .filter(|o| o.is_some())
         .map(|o| o.unwrap())
     {
-        let other_piece = board.get_piece(target_square);
-        if other_piece.is_none() || other_piece.unwrap().get_color() != piece.unwrap().get_color() {
-            moves.push(Move {
-                from: square,
-                to: target_square,
-                promotion: None,
-                capture: other_piece,
-                piece: piece.unwrap(),
-                en_passant_square: None,
-            });
+        let other_piece_option = board.get_piece(target_square);
+        if other_piece_option.is_none_or(|p| p.get_color() != piece.get_color()) {
+            moves.push(
+                Move::new(square, target_square, piece).with_capture_option(other_piece_option),
+            )
         }
     }
     moves
@@ -117,29 +131,16 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
     if let Some(forward_square) = forward_square_option
         && board.is_square_empty(forward_square)
     {
-        moves.push(Move {
-            from: square,
-            to: forward_square,
-            promotion: None,
-            capture: None,
-            piece,
-            en_passant_square: None,
-        });
+        moves.push(Move::new(square, forward_square, piece));
 
         // double move
         if (dir < 0 && square.rank == 6) || (dir > 0 && square.rank == 1) {
             let double_forward_square_option = square.offset(0, dir * 2);
-            if let Some(double_forward_square) = double_forward_square_option
-                && board.is_square_empty(double_forward_square)
-            {
-                moves.push(Move {
-                    from: square,
-                    to: double_forward_square,
-                    promotion: None,
-                    capture: None,
-                    piece,
-                    en_passant_square: Some(forward_square),
-                });
+            if double_forward_square_option.is_some_and(|s| board.is_square_empty(s)) {
+                moves.push(
+                    Move::new(square, double_forward_square_option.unwrap(), piece)
+                        .with_en_passant_square(forward_square),
+                );
             }
         }
     }
@@ -154,14 +155,9 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
         if let Some(other_piece) = other_piece_option
             && other_piece.get_color() != piece.get_color()
         {
-            moves.push(Move {
-                from: square,
-                to: attack_square,
-                promotion: None,
-                capture: other_piece_option,
-                piece,
-                en_passant_square: None,
-            });
+            moves.push(
+                Move::new(square, attack_square, piece).with_capture_option(other_piece_option),
+            );
         }
     }
 
@@ -176,13 +172,10 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
                     PieceKind::Knight,
                 ]
                 .iter()
-                .map(|&kind| Move {
-                    from: m.from,
-                    to: m.to,
-                    promotion: Some(Piece::new(piece.get_color(), kind)),
-                    capture: m.capture,
-                    piece,
-                    en_passant_square: None,
+                .map(|&kind| {
+                    Move::new(m.from, m.to, piece)
+                        .with_capture_option(m.capture)
+                        .with_promotion(Piece::new(piece.get_color(), kind))
                 })
                 .collect::<Vec<_>>()
             } else {
@@ -303,7 +296,6 @@ mod tests {
         let board = Board::from_fen("8/8/8/8/3q4/8/8/8 w KQkq - 0 1");
         let mut moves = get_moves_for_piece(&board, Square { file: 3, rank: 4 });
         moves.sort_by_key(|m| m.to);
-        moves.iter().for_each(|m| println!("{:?}", m));
         assert_eq!(moves.len(), 27);
     }
 
