@@ -115,7 +115,12 @@ impl App {
         }
 
         self.possible_moves = self.active_square.map_or(Vec::new(), |square| {
-            get_moves_for_piece(&self.board, square)
+            self.board
+                .get_legal_moves()
+                .iter()
+                .filter(|m| m.from == square)
+                .copied()
+                .collect()
         });
     }
 
@@ -254,6 +259,11 @@ impl App {
             Line::from(vec![
                 format!("{}  {}", turn_symbol, turn_text).bold(),
                 " to move".into(),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                "Is in check: ".into(),
+                format!("{}", self.board.is_in_check()).bold(),
             ]),
             Line::from(""),
             Line::from(vec![

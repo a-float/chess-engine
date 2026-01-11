@@ -16,7 +16,7 @@ fn perft(depth: u8, res: &mut Results, board: &mut Board) {
         return;
     }
 
-    let moves = board.get_moves();
+    let moves = board.get_legal_moves();
     for m in moves {
         if depth == 1 {
             res.total += 1;
