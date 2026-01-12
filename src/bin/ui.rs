@@ -37,6 +37,7 @@ pub struct App {
     possible_moves: Vec<Move>,
     exit: bool,
     board_area: Cell<Rect>,
+    move_history: Vec<Move>,
 }
 
 impl Default for App {
@@ -47,6 +48,7 @@ impl Default for App {
             possible_moves: Vec::new(),
             exit: false,
             board_area: Cell::new(Rect::default()),
+            move_history: Vec::new(),
         }
     }
 }
@@ -74,7 +76,21 @@ impl App {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('Q') => self.exit(),
+            KeyCode::Char('u') => self.undo_move(),
+            KeyCode::Char('r') => self.restart_game(),
             _ => {}
+        }
+    }
+
+    fn undo_move(&mut self) {
+        if let Some(last_move) = self.move_history.pop() {
+            self.board.undo_move(&last_move);
+        }
+    }
+
+    fn restart_game(&mut self) {
+        while !self.move_history.is_empty() {
+            self.undo_move();
         }
     }
 
@@ -109,9 +125,10 @@ impl App {
             new_square
         };
 
-        if end_move.is_some() {
-            self.board.apply_move(end_move.unwrap());
+        if let Some(m) = end_move {
+            self.board.apply_move(m);
             self.active_square = None;
+            self.move_history.push(*m);
         }
 
         self.possible_moves = self.active_square.map_or(Vec::new(), |square| {
@@ -317,7 +334,7 @@ impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let horizontal = Layout::horizontal([Constraint::Length(48), Constraint::Fill(1)]);
         let [left_area, right_area] = horizontal.areas(area);
-        let vertical = Layout::vertical([Constraint::Length(48), Constraint::Fill(1)]);
+        let vertical = Layout::vertical([Constraint::Length(48), Constraint::Length(2)]);
         let [top_area, bottom_area] = vertical.areas(left_area);
 
         let title = Line::from(" Chess ".bold());
@@ -332,10 +349,15 @@ impl Widget for &App {
 
         self.render_game_state(right_area, buf);
 
+        Paragraph::new(
+            Line::from(" q: quit, u: undo move, r: restart").fg(Color::Rgb(164, 164, 164)),
+        )
+        .centered()
+        .render(bottom_area, buf);
+
         Block::bordered()
             .title_top(title.centered())
             .border_set(border::THICK)
-            .padding(Padding::symmetric(1, 1))
             .render(area, buf);
     }
 }
