@@ -248,23 +248,23 @@ impl App {
     fn render_game_state(&self, area: Rect, buf: &mut Buffer) {
         let game_state = self.board.get_game_state();
 
-        let (turn_symbol, turn_text, turn_bg_color, turn_fg_color) =
-            if self.board.get_active_color() == piece::Color::White {
-                ("♚", "White", Color::Rgb(240, 240, 240), Color::Black)
-            } else {
-                ("♔", "Black", Color::Rgb(50, 50, 50), Color::White)
-            };
-
-        let mut lines = vec![
-            Line::from(vec![
-                format!("{}  {}", turn_symbol, turn_text).bold(),
-                " to move".into(),
-            ]),
-            Line::from(""),
+        let check_state_line = if self.board.is_checkmate() {
+            let winner = self.board.get_active_color().opposite();
+            Line::from(format!("CHECKMATE: {} has won!", winner))
+        } else {
             Line::from(vec![
                 "Is in check: ".into(),
                 format!("{}", self.board.is_in_check()).bold(),
+            ])
+        };
+
+        let mut lines = vec![
+            Line::from(vec![
+                format!("{}", self.board.get_active_color()).bold(),
+                " to move".into(),
             ]),
+            Line::from(""),
+            check_state_line,
             Line::from(""),
             Line::from(vec![
                 "Move: ".into(),

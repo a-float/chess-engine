@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum PieceKind {
     Pawn,
@@ -20,6 +22,16 @@ impl Color {
             Color::White => Color::Black,
             Color::Black => Color::White,
         }
+    }
+}
+
+impl Display for Color {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            Color::White => "♚ White",
+            Color::Black => "♔ Black",
+        };
+        write!(f, "{}", str)
     }
 }
 

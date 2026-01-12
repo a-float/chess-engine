@@ -77,7 +77,8 @@ impl Board {
         let mut mock_board = self.clone();
         for m in all {
             mock_board.apply_move(&m);
-            if !mock_board.is_in_check() {
+            // apply_move toggle active color, we toggle it again checking for opponent check
+            if !mock_board.is_opponent_in_check() {
                 legal_moves.push(m);
             }
             mock_board.undo_move(&m);
@@ -98,8 +99,8 @@ impl Board {
         moves
     }
 
-    fn get_checking_pieces(&self) -> Vec<(Piece, Square)> {
-        let opponent_moves = self.get_moves_for_color(self.get_active_color());
+    fn get_checking_pieces(&self, color: Color) -> Vec<(Piece, Square)> {
+        let opponent_moves = self.get_moves_for_color(color);
         let checks = opponent_moves
             .iter()
             .filter(|m| m.capture.is_some_and(|c| c.get_kind() == PieceKind::King))
@@ -109,7 +110,17 @@ impl Board {
     }
 
     pub fn is_in_check(&self) -> bool {
-        !self.get_checking_pieces().is_empty()
+        !self
+            .get_checking_pieces(self.get_active_color().opposite())
+            .is_empty()
+    }
+
+    pub fn is_opponent_in_check(&self) -> bool {
+        !self.get_checking_pieces(self.get_active_color()).is_empty()
+    }
+
+    pub fn is_checkmate(&self) -> bool {
+        self.get_legal_moves().is_empty()
     }
 
     fn toggle_active_color(&mut self) {
