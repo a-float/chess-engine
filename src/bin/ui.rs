@@ -1,7 +1,7 @@
-mod board;
-mod r#move;
-mod search;
 use board::Board;
+use chess_engine::board;
+use chess_engine::r#move;
+use chess_engine::search;
 
 use std::{
     cell::Cell,
@@ -27,7 +27,7 @@ use ratatui::{
 
 use crate::{
     board::{piece, square::Square},
-    r#move::{Move, get_moves_for_piece},
+    r#move::Move,
 };
 
 #[derive(Debug)]
