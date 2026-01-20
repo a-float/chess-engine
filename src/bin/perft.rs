@@ -51,10 +51,10 @@ fn main() {
 
     let mut board = Board::default();
     println!(
-        "| Depth | Nodes                   | Captures                | En passant        | Castles         | Time (ms) |"
+        "| Depth | Nodes                   | Captures                | En passant        | Castles         | Time (ms) | Nodes/s   |"
     );
     println!(
-        "|:-----:|------------------------:|------------------------:|------------------:|----------------:|----------:|"
+        "|:-----:|------------------------:|------------------------:|------------------:|----------------:|----------:|----------:|"
     );
 
     for depth in 1..=max_depth {
@@ -62,7 +62,13 @@ fn main() {
         let start = SystemTime::now();
         perft(depth, &mut res, &mut board);
         let end = SystemTime::now();
-        let elapsed = end.duration_since(start).unwrap().as_millis();
+        let elapsed = end.duration_since(start).unwrap();
+
+        let nodes_per_sec = if elapsed.as_nanos() > 0 {
+            (res.total as f64 / (elapsed.as_nanos() as f64 / 1e9)) as u64
+        } else {
+            0
+        };
 
         let expected = &EXPECTED[depth as usize];
         let nodes_diff = res.total as i64 - expected.total as i64;
@@ -77,10 +83,28 @@ fn main() {
         let castles_diff = res.castles as i64 - expected.castles as i64;
         let castles_str = format!("{} ({:+})", res.castles, castles_diff);
 
+        let nps_str = format_nodes_per_sec(nodes_per_sec);
+
         println!(
-            "| {:5} | {:>23} | {:>23} | {:>17} | {:>15} | {:9} |",
-            depth, nodes_str, captures_str, ep_str, castles_str, elapsed,
+            "| {:5} | {:>23} | {:>23} | {:>17} | {:>15} | {:9} | {:>9} |",
+            depth,
+            nodes_str,
+            captures_str,
+            ep_str,
+            castles_str,
+            elapsed.as_millis(),
+            nps_str,
         );
+    }
+}
+
+fn format_nodes_per_sec(nps: u64) -> String {
+    if nps >= 1_000_000 {
+        format!("{:.2}M", nps as f64 / 1_000_000.0)
+    } else if nps >= 1_000 {
+        format!("{:.2}K", nps as f64 / 1_000.0)
+    } else {
+        format!("{}", nps)
     }
 }
 
