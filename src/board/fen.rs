@@ -46,6 +46,7 @@ fn read_castling_rights(castling_str: &str) -> CastlingRights {
             'Q' => rights.white_queen_side = true,
             'k' => rights.black_king_side = true,
             'q' => rights.black_queen_side = true,
+            '-' => {}
             _ => panic!("Invalid castling rights character: {}", ch),
         }
     }
