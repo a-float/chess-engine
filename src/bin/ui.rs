@@ -1,6 +1,7 @@
 use board::Board;
 use chess_engine::board;
 use chess_engine::r#move;
+use chess_engine::r#move::get_square_attackers;
 use chess_engine::search;
 
 use std::{
@@ -29,6 +30,9 @@ use crate::{
     board::{piece, square::Square},
     r#move::Move,
 };
+
+const WHITE_ACTIVE_COLOR: Color = Color::Rgb(255, 165, 0);
+const BLACK_ACTIVE_COLOR: Color = Color::Rgb(0, 0, 205);
 
 #[derive(Debug)]
 pub struct App {
@@ -117,7 +121,7 @@ impl App {
             .find(|m| m.to == new_square.unwrap());
 
         self.active_square = if new_square == self.active_square
-            || end_move.is_none() && piece.is_none()
+            // || end_move.is_none() && piece.is_none()
             || piece.is_some_and(|p| p.get_color() != self.board.get_active_color())
         {
             None
@@ -168,8 +172,8 @@ impl App {
 impl App {
     fn get_active_style_for_side(color: piece::Color) -> Style {
         match color {
-            piece::Color::Black => Style::default().fg(Color::Rgb(0, 0, 205)),
-            piece::Color::White => Style::default().fg(Color::Rgb(255, 165, 0)),
+            piece::Color::Black => Style::default().fg(BLACK_ACTIVE_COLOR),
+            piece::Color::White => Style::default().fg(WHITE_ACTIVE_COLOR),
         }
     }
 
@@ -203,6 +207,8 @@ impl App {
         let mut char = ' ';
         if piece.is_some() {
             char = piece.unwrap().to_char();
+        } else if piece.is_none() && Some(square) == self.active_square {
+            char = '?';
         } else if self.possible_moves.iter().any(|m| m.to == square) {
             char = '.';
         }
@@ -318,6 +324,32 @@ impl App {
                 "Possible moves: ".into(),
                 format!("{}", self.possible_moves.len()).cyan().bold(),
             ]));
+        }
+
+        if let Some(active_sq) = self.active_square {
+            let mut mut_board = self.board.clone();
+            let black_attackers =
+                get_square_attackers(&mut mut_board, active_sq, piece::Color::White);
+            let white_attackers =
+                get_square_attackers(&mut mut_board, active_sq, piece::Color::Black);
+
+            for (attacker, square) in white_attackers {
+                lines.push(Line::from(vec![
+                    "Attacked by: ".into(),
+                    format!("{}  from {}", attacker.to_char(), square)
+                        .fg(WHITE_ACTIVE_COLOR)
+                        .bold(),
+                ]));
+            }
+
+            for (attacker, square) in black_attackers {
+                lines.push(Line::from(vec![
+                    "Attacked by: ".into(),
+                    format!("{}  from {}", attacker.to_char(), square)
+                        .fg(BLACK_ACTIVE_COLOR)
+                        .bold(),
+                ]));
+            }
         }
 
         Paragraph::new(lines)
