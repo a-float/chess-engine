@@ -8,7 +8,7 @@ use crate::{
         piece::{Color, Piece, PieceKind},
         square::Square,
     },
-    r#move::{Move, get_moves_for_piece},
+    r#move::{Move, get_moves_for_piece, get_square_attackers},
 };
 
 pub type SquareArray = [Option<Piece>; 64];
@@ -55,6 +55,11 @@ impl Board {
         self.get_piece(square).is_none()
     }
 
+    pub fn is_square_attacked(&self, square: Square, by_color: Color) -> bool {
+        let attackers = get_square_attackers(self, square, by_color);
+        !attackers.is_empty()
+    }
+
     pub fn get_active_color(&self) -> Color {
         if self.is_white_turn {
             Color::White
@@ -77,7 +82,7 @@ impl Board {
         let mut mock_board = self.clone();
         for m in all {
             mock_board.apply_move(&m);
-            // apply_move toggle active color, we toggle it again checking for opponent check
+            // apply_move toggles active color, we toggle it again checking for opponent check
             if !mock_board.is_opponent_in_check() {
                 legal_moves.push(m);
             }
@@ -127,6 +132,31 @@ impl Board {
         self.is_white_turn = !self.is_white_turn;
     }
 
+    fn update_castling_rights(rights: &mut CastlingRights, m: &Move) {
+        if m.piece == Piece::BLACK_KING {
+            rights.black_king_side = false;
+            rights.black_queen_side = false;
+        }
+        if m.piece == Piece::WHITE_KING {
+            rights.white_king_side = false;
+            rights.white_queen_side = false;
+        }
+        if m.piece == Piece::BLACK_ROOK {
+            match m.from {
+                s if s == Square { file: 0, rank: 7 } => rights.black_queen_side = false,
+                s if s == Square { file: 7, rank: 7 } => rights.black_king_side = false,
+                _ => {}
+            }
+        }
+        if m.piece == Piece::WHITE_ROOK {
+            match m.from {
+                s if s == Square { file: 0, rank: 0 } => rights.white_queen_side = false,
+                s if s == Square { file: 7, rank: 0 } => rights.white_king_side = false,
+                _ => {}
+            }
+        }
+    }
+
     pub fn apply_move(&mut self, m: &Move) {
         if m.piece.get_color() == Color::Black {
             self.fullmove_number += 1;
@@ -146,11 +176,18 @@ impl Board {
             },
         };
 
+        Self::update_castling_rights(&mut new_game_state.castling_rights, m);
+
         if let Some(sq) = m.en_passant_square
             && m.capture.is_some()
         {
             self.set_piece(sq, None);
             new_game_state.en_passant_square = None;
+        }
+
+        if let Some((rook_from, rook_to)) = m.castling_rook_from_to {
+            self.set_piece(rook_to, self.get_piece(rook_from));
+            self.set_piece(rook_from, None);
         }
 
         self.state_history.push(new_game_state);
@@ -170,6 +207,11 @@ impl Board {
         } else {
             self.set_piece(m.to, m.capture);
         }
+        if let Some((rook_from, rook_to)) = m.castling_rook_from_to {
+            self.set_piece(rook_from, self.get_piece(rook_to));
+            self.set_piece(rook_to, None);
+        }
+
         self.state_history.pop();
     }
 }

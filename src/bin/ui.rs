@@ -2,7 +2,6 @@ use board::Board;
 use chess_engine::board;
 use chess_engine::r#move;
 use chess_engine::r#move::get_square_attackers;
-use chess_engine::search;
 
 use std::{
     cell::Cell,

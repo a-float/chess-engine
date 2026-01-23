@@ -47,6 +47,7 @@ pub struct Move {
     pub capture: Option<Piece>,
     pub piece: Piece,
     pub en_passant_square: Option<Square>,
+    pub castling_rook_from_to: Option<(Square, Square)>,
 }
 
 impl Move {
@@ -58,6 +59,7 @@ impl Move {
             capture: None,
             en_passant_square: None,
             promotion: None,
+            castling_rook_from_to: None,
         }
     }
 
@@ -80,11 +82,20 @@ impl Move {
         self.en_passant_square = Some(en_passant_square);
         *self
     }
+
+    fn with_castling(&mut self, rook_from: Square, rook_to: Square) -> Self {
+        self.castling_rook_from_to = Some((rook_from, rook_to));
+        *self
+    }
 }
 
-fn get_moves_in_line(board: &Board, square: Square, directions: Vec<(i8, i8)>) -> Vec<Move> {
+fn get_moves_in_line(
+    board: &Board,
+    square: Square,
+    piece: Piece,
+    directions: Vec<(i8, i8)>,
+) -> Vec<Move> {
     let mut moves: Vec<Move> = Vec::new();
-    let piece = board.get_piece(square).unwrap();
 
     for (file_delta, rank_delta) in directions.iter() {
         let mut target_square_option = square.offset(*file_delta, *rank_delta);
@@ -103,9 +114,13 @@ fn get_moves_in_line(board: &Board, square: Square, directions: Vec<(i8, i8)>) -
     moves
 }
 
-fn get_moves_at_offsets(board: &Board, square: Square, offsets: Vec<(i8, i8)>) -> Vec<Move> {
+fn get_moves_at_offsets(
+    board: &Board,
+    square: Square,
+    piece: Piece,
+    offsets: Vec<(i8, i8)>,
+) -> Vec<Move> {
     let mut moves: Vec<Move> = Vec::new();
-    let piece = board.get_piece(square).unwrap();
 
     for target_square in offsets
         .iter()
@@ -194,38 +209,83 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
         .collect();
 }
 
+fn get_castling_moves(board: &Board, color: Color) -> Vec<Move> {
+    let mut moves = Vec::new();
+    let castling_rights = board.get_game_state().castling_rights;
+    let (piece, rank) = match color {
+        Color::White => (Piece::WHITE_KING, 0),
+        Color::Black => (Piece::BLACK_KING, 7),
+    };
+    let (can_king_side, can_queen_side) = match color {
+        Color::White => (
+            castling_rights.white_king_side,
+            castling_rights.white_queen_side,
+        ),
+        Color::Black => (
+            castling_rights.black_king_side,
+            castling_rights.black_queen_side,
+        ),
+    };
+
+    if can_king_side
+        && [Square { file: 5, rank: 0 }, Square { file: 6, rank: 0 }]
+            .iter()
+            .all(|&s| board.is_square_empty(s) && !board.is_square_attacked(s, color))
+    {
+        moves.push(
+            Move::new(Square { file: 4, rank }, Square { file: 6, rank }, piece)
+                .with_castling(Square { file: 7, rank }, Square { file: 5, rank }),
+        );
+    }
+    if can_queen_side
+        && [
+            Square { file: 1, rank },
+            Square { file: 2, rank },
+            Square { file: 3, rank },
+        ]
+        .iter()
+        .all(|&s| board.is_square_empty(s) && !board.is_square_attacked(s, color))
+    {
+        moves.push(
+            Move::new(Square { file: 4, rank }, Square { file: 2, rank }, piece)
+                .with_castling(Square { file: 0, rank }, Square { file: 3, rank }),
+        );
+    }
+
+    moves
+}
+
 pub fn get_square_attackers(
-    board: &mut Board,
+    board: &Board,
     square: Square,
     attacked: Color,
 ) -> Vec<(Piece, Square)> {
     let mut attackers: Vec<Move> = Vec::new();
 
-    let og_piece = board.get_piece(square);
-    board.set_piece(square, Some(Piece::new(attacked, PieceKind::Pawn)));
+    let piece = Piece::new(attacked, PieceKind::Pawn); // dummy piece to generate moves
 
-    let diagonal_moves = get_moves_in_line(board, square, BISHOP_OFFSETS.to_vec());
+    let diagonal_moves = get_moves_in_line(board, square, piece, BISHOP_OFFSETS.to_vec());
     let diagonal_attackers: Vec<Move> = diagonal_moves
         .into_iter()
         .filter(|m| m.capture.is_some())
         .filter(|m| [PieceKind::Bishop, PieceKind::Queen].contains(&m.capture.unwrap().get_kind()))
         .collect();
 
-    let orthogonal_moves = get_moves_in_line(board, square, ROOK_OFFSETS.to_vec());
+    let orthogonal_moves = get_moves_in_line(board, square, piece, ROOK_OFFSETS.to_vec());
     let orthogonal_attackers: Vec<Move> = orthogonal_moves
         .into_iter()
         .filter(|m| m.capture.is_some())
         .filter(|m| [PieceKind::Rook, PieceKind::Queen].contains(&m.capture.unwrap().get_kind()))
         .collect();
 
-    let knight_moves = get_moves_at_offsets(board, square, KNIGHT_OFFSETS.to_vec());
+    let knight_moves = get_moves_at_offsets(board, square, piece, KNIGHT_OFFSETS.to_vec());
     let knight_attackers: Vec<Move> = knight_moves
         .into_iter()
         .filter(|m| m.capture.is_some())
         .filter(|m| m.capture.unwrap().get_kind() == PieceKind::Knight)
         .collect();
 
-    let king_moves = get_moves_at_offsets(board, square, KING_OFFSETS.to_vec());
+    let king_moves = get_moves_at_offsets(board, square, piece, KING_OFFSETS.to_vec());
     let king_attackers: Vec<Move> = king_moves
         .into_iter()
         .filter(|m| m.capture.is_some())
@@ -236,14 +296,12 @@ pub fn get_square_attackers(
         Color::White => WHITE_PAWN_ATTACK_OFFSETS,
         Color::Black => BLACK_PAWN_ATTACK_OFFSETS,
     };
-    let pawn_moves = get_moves_at_offsets(board, square, pawn_attack_offsets.to_vec());
+    let pawn_moves = get_moves_at_offsets(board, square, piece, pawn_attack_offsets.to_vec());
     let pawn_attackers: Vec<Move> = pawn_moves
         .into_iter()
         .filter(|m| m.capture.is_some())
         .filter(|m| m.capture.unwrap().get_kind() == PieceKind::Pawn)
         .collect();
-
-    board.set_piece(square, og_piece);
 
     attackers.extend(diagonal_attackers);
     attackers.extend(orthogonal_attackers);
@@ -272,23 +330,49 @@ pub fn get_moves_for_piece(board: &Board, square: Square) -> Vec<Move> {
     }
 
     if kind == PieceKind::Knight {
-        moves.extend(get_moves_at_offsets(board, square, KNIGHT_OFFSETS.to_vec()));
+        moves.extend(get_moves_at_offsets(
+            board,
+            square,
+            piece,
+            KNIGHT_OFFSETS.to_vec(),
+        ));
     }
 
     if kind == PieceKind::Bishop {
-        moves.extend(get_moves_in_line(board, square, BISHOP_OFFSETS.to_vec()));
+        moves.extend(get_moves_in_line(
+            board,
+            square,
+            piece,
+            BISHOP_OFFSETS.to_vec(),
+        ));
     }
 
     if kind == PieceKind::Rook {
-        moves.extend(get_moves_in_line(board, square, ROOK_OFFSETS.to_vec()));
+        moves.extend(get_moves_in_line(
+            board,
+            square,
+            piece,
+            ROOK_OFFSETS.to_vec(),
+        ));
     }
 
     if kind == PieceKind::Queen {
-        moves.extend(get_moves_in_line(board, square, QUEEN_OFFSETS.to_vec()));
+        moves.extend(get_moves_in_line(
+            board,
+            square,
+            piece,
+            QUEEN_OFFSETS.to_vec(),
+        ));
     }
 
     if kind == PieceKind::King {
-        moves.extend(get_moves_at_offsets(board, square, KING_OFFSETS.to_vec()));
+        moves.extend(get_moves_at_offsets(
+            board,
+            square,
+            piece,
+            KING_OFFSETS.to_vec(),
+        ));
+        moves.extend(get_castling_moves(board, piece.get_color()));
     }
 
     moves
@@ -378,6 +462,27 @@ mod tests {
             let board = Board::from_fen("rnbqkbnr/8/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
             let moves = get_moves_for_piece(&board, Square { file: 4, rank: 0 });
             assert_eq!(moves.len(), 3);
+        }
+
+        #[test]
+        fn test_castling_moves() {
+            let board = Board::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            let moves = get_castling_moves(&board, Color::White);
+            assert_eq!(moves.len(), 2);
+            assert!(moves.iter().any(|m| m.castling_rook_from_to
+                == Some((Square { file: 7, rank: 0 }, Square { file: 5, rank: 0 }))));
+            assert!(moves.iter().any(|m| m.castling_rook_from_to
+                == Some((Square { file: 0, rank: 0 }, Square { file: 3, rank: 0 }))));
+        }
+
+        #[test]
+        fn test_no_castling_when_square_attacked() {
+            let board = Board::from_fen("6r1/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
+            let moves = get_castling_moves(&board, Color::Black);
+            println!("{:?}", moves);
+            assert_eq!(moves.len(), 1);
+            assert!(moves.iter().any(|m| m.castling_rook_from_to
+                == Some((Square { file: 0, rank: 7 }, Square { file: 3, rank: 7 }))));
         }
     }
 
