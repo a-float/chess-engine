@@ -8,7 +8,7 @@ use crate::{
         piece::{Color, Piece, PieceKind},
         square::Square,
     },
-    r#move::{Move, get_moves_for_piece, get_square_attackers},
+    r#move::{Move, get_moves_from_square, get_square_attackers},
 };
 
 pub type SquareArray = [Option<Piece>; 64];
@@ -98,7 +98,7 @@ impl Board {
             if let Some(piece) = self.get_piece(square)
                 && piece.get_color() == color
             {
-                moves.extend(get_moves_for_piece(&self, square));
+                moves.extend(get_moves_from_square(&self, square));
             }
         }
         moves
@@ -118,7 +118,7 @@ impl Board {
         if let Some(king_square) = king_square_option {
             get_square_attackers(self, king_square, color)
         } else {
-            Vec::new() // Should not happen in a valid game
+            Vec::new() // Can't happen on a valid board
         }
     }
 
