@@ -105,23 +105,33 @@ impl Board {
     }
 
     fn get_checking_pieces(&self, color: Color) -> Vec<(Piece, Square)> {
-        let opponent_moves = self.get_moves_for_color(color);
-        let checks = opponent_moves
-            .iter()
-            .filter(|m| m.capture.is_some_and(|c| c.get_kind() == PieceKind::King))
-            .map(|m| (m.piece, m.from))
-            .collect();
-        checks
+        let target_piece = Piece::new(color, PieceKind::King);
+        let king_square_option = (0..64).find_map(|idx| {
+            let square = Square::from_index(idx).unwrap();
+            if self.get_piece(square) == Some(target_piece) {
+                Some(square)
+            } else {
+                None
+            }
+        });
+
+        if let Some(king_square) = king_square_option {
+            get_square_attackers(self, king_square, color)
+        } else {
+            Vec::new() // Should not happen in a valid game
+        }
+    }
+
+    pub fn is_color_in_check(&self, color: Color) -> bool {
+        !self.get_checking_pieces(color).is_empty()
     }
 
     pub fn is_in_check(&self) -> bool {
-        !self
-            .get_checking_pieces(self.get_active_color().opposite())
-            .is_empty()
+        self.is_color_in_check(self.get_active_color())
     }
 
     pub fn is_opponent_in_check(&self) -> bool {
-        !self.get_checking_pieces(self.get_active_color()).is_empty()
+        self.is_color_in_check(self.get_active_color().opposite())
     }
 
     pub fn is_checkmate(&self) -> bool {

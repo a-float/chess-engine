@@ -211,6 +211,9 @@ fn get_moves_for_pawn(board: &Board, square: Square, piece: Piece) -> Vec<Move> 
 
 fn get_castling_moves(board: &Board, color: Color) -> Vec<Move> {
     let mut moves = Vec::new();
+    if board.is_color_in_check(color) {
+        return moves;
+    }
     let castling_rights = board.get_game_state().castling_rights;
     let (piece, rank) = match color {
         Color::White => (Piece::WHITE_KING, 0),
@@ -479,10 +482,16 @@ mod tests {
         fn test_no_castling_when_square_attacked() {
             let board = Board::from_fen("6r1/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
             let moves = get_castling_moves(&board, Color::Black);
-            println!("{:?}", moves);
             assert_eq!(moves.len(), 1);
             assert!(moves.iter().any(|m| m.castling_rook_from_to
                 == Some((Square { file: 0, rank: 7 }, Square { file: 3, rank: 7 }))));
+        }
+
+        #[test]
+        fn test_no_castling_when_in_check() {
+            let board = Board::from_fen("r3k2r/8/8/4R3/8/8/8/8 w KQkq - 0 1");
+            let moves = get_castling_moves(&board, Color::White);
+            assert_eq!(moves.len(), 0);
         }
     }
 
@@ -491,18 +500,16 @@ mod tests {
 
         #[test]
         fn test_attacked_by_pawn() {
-            let mut board = Board::from_fen("8/8/8/8/8/3P4/8/8 w - - 0 1");
-            let attackers =
-                get_square_attackers(&mut board, Square { file: 2, rank: 4 }, Color::White);
+            let board = Board::from_fen("8/8/8/8/8/3P4/8/8 w - - 0 1");
+            let attackers = get_square_attackers(&board, Square { file: 2, rank: 4 }, Color::White);
             assert_eq!(attackers.len(), 1);
             assert!(attackers.iter().any(|a| a.0.get_kind() == PieceKind::Pawn));
         }
 
         #[test]
         fn test_attacked_by_knight() {
-            let mut board = Board::from_fen("8/8/3N4/8/8/8/8/8 w - - 0 1");
-            let attackers =
-                get_square_attackers(&mut board, Square { file: 2, rank: 4 }, Color::White);
+            let board = Board::from_fen("8/8/3N4/8/8/8/8/8 w - - 0 1");
+            let attackers = get_square_attackers(&board, Square { file: 2, rank: 4 }, Color::White);
             assert_eq!(attackers.len(), 1);
             assert!(
                 attackers
@@ -513,9 +520,8 @@ mod tests {
 
         #[test]
         fn test_attacked_by_bishop() {
-            let mut board = Board::from_fen("8/8/8/3B4/8/8/8/8 w - - 0 1");
-            let attackers =
-                get_square_attackers(&mut board, Square { file: 0, rank: 0 }, Color::White);
+            let board = Board::from_fen("8/8/8/3B4/8/8/8/8 w - - 0 1");
+            let attackers = get_square_attackers(&board, Square { file: 0, rank: 0 }, Color::White);
             assert_eq!(attackers.len(), 1);
             assert!(
                 attackers
@@ -526,36 +532,32 @@ mod tests {
 
         #[test]
         fn test_attacked_by_rook() {
-            let mut board = Board::from_fen("R7/8/8/8/8/8/8/8 w - - 0 1");
-            let attackers =
-                get_square_attackers(&mut board, Square { file: 0, rank: 7 }, Color::White);
+            let board = Board::from_fen("R7/8/8/8/8/8/8/8 w - - 0 1");
+            let attackers = get_square_attackers(&board, Square { file: 0, rank: 7 }, Color::White);
             assert_eq!(attackers.len(), 1);
             assert!(attackers.iter().any(|a| a.0.get_kind() == PieceKind::Rook));
         }
 
         #[test]
         fn test_attacked_by_queen() {
-            let mut board = Board::from_fen("8/8/8/3Q4/8/8/8/8 w - - 0 1");
-            let attackers =
-                get_square_attackers(&mut board, Square { file: 4, rank: 3 }, Color::White);
+            let board = Board::from_fen("8/8/8/3Q4/8/8/8/8 w - - 0 1");
+            let attackers = get_square_attackers(&board, Square { file: 4, rank: 3 }, Color::White);
             assert_eq!(attackers.len(), 1);
             assert!(attackers.iter().any(|a| a.0.get_kind() == PieceKind::Queen));
         }
 
         #[test]
         fn test_attacked_by_king() {
-            let mut board = Board::from_fen("8/8/8/8/3K4/8/8/8 w - - 0 1");
-            let attackers =
-                get_square_attackers(&mut board, Square { file: 4, rank: 3 }, Color::White);
+            let board = Board::from_fen("8/8/8/8/3K4/8/8/8 w - - 0 1");
+            let attackers = get_square_attackers(&board, Square { file: 4, rank: 3 }, Color::White);
             assert_eq!(attackers.len(), 1);
             assert!(attackers.iter().any(|a| a.0.get_kind() == PieceKind::King));
         }
 
         #[test]
         fn test_attacked_by_multiple_pieces() {
-            let mut board = Board::from_fen("8/8/3N4/4R3/8/3P4/8/8 w - - 0 1");
-            let attackers =
-                get_square_attackers(&mut board, Square { file: 4, rank: 4 }, Color::White);
+            let board = Board::from_fen("8/8/3N4/4R3/8/3P4/8/8 w - - 0 1");
+            let attackers = get_square_attackers(&board, Square { file: 4, rank: 4 }, Color::White);
             assert!(attackers.len() == 3);
         }
     }
