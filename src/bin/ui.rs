@@ -1,6 +1,6 @@
 use board::Board;
 use chess_engine::board;
-use chess_engine::evaluate::{MaterialEvaluator, SumEvaluator};
+use chess_engine::evaluate::{MaterialEvaluator, PositioningEvaluator, SumEvaluator};
 use chess_engine::r#move;
 use chess_engine::r#move::get_square_attackers;
 use chess_engine::search::{MinimaxSearch, SearchAlgorithm};
@@ -8,6 +8,7 @@ use chess_engine::search::{MinimaxSearch, SearchAlgorithm};
 use std::{
     cell::Cell,
     io::{self, Error, stdout},
+    time::{Duration, Instant},
 };
 
 use ratatui::{
@@ -47,6 +48,7 @@ pub struct App {
     ai_color: piece::Color,
     ai_depth: u8,
     ai_evaluator: SumEvaluator,
+    ai_last_move_time: Option<Duration>,
 }
 
 impl Default for App {
@@ -61,7 +63,11 @@ impl Default for App {
             ai_enabled: false,
             ai_color: piece::Color::Black,
             ai_depth: 3,
-            ai_evaluator: SumEvaluator::new(vec![Box::new(MaterialEvaluator::new())]),
+            ai_evaluator: SumEvaluator::new(vec![
+                Box::new(MaterialEvaluator::new(10)),
+                Box::new(PositioningEvaluator::new(1)),
+            ]),
+            ai_last_move_time: None,
         }
     }
 }
@@ -133,9 +139,11 @@ impl App {
     }
 
     fn make_ai_move(&mut self) {
+        let start = Instant::now();
         if let Some(best_move) =
             MinimaxSearch::find_best_move(&self.board, &self.ai_evaluator, self.ai_depth)
         {
+            self.ai_last_move_time = Some(start.elapsed());
             self.board.apply_move(&best_move);
             self.move_history.push(best_move);
             self.active_square = None;
@@ -418,9 +426,15 @@ impl App {
             .ai_evaluator
             .get_evaluators()
             .iter()
-            .map(|e| format!("{}: {}", e.name(), e.evaluate(&self.board)))
+            .map(|e| format!("{}: {}", e.name(), e.evaluate_for_white(&self.board)))
             .collect::<Vec<String>>()
             .join(" | ");
+
+        let time_line = if let Some(duration) = self.ai_last_move_time {
+            format!("Last move: {:.2}s", duration.as_secs_f64())
+        } else {
+            "Last move: N/A".to_string()
+        };
 
         let lines = vec![
             Line::from(vec![
@@ -437,6 +451,7 @@ impl App {
                 ")".into(),
             ]),
             Line::from(eval_line).fg(Color::Cyan),
+            Line::from(time_line).fg(Color::Yellow),
             Line::from("a: toggle | c: color | +/-: depth | m: move").fg(MUTED_COLOR),
         ];
 

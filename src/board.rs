@@ -72,12 +72,12 @@ impl Board {
         return self.state_history.last().unwrap();
     }
 
-    fn get_all_moves(&self) -> Vec<Move> {
-        self.get_moves_for_color(self.get_active_color())
-    }
+    // fn get_all_moves(&self) -> Vec<Move> {
+    //     self.get_moves_for_color(self.get_active_color())
+    // }
 
-    pub fn get_legal_moves(&self) -> Vec<Move> {
-        let all = self.get_all_moves();
+    pub fn get_legal_moves_for_color(&self, color: Color) -> Vec<Move> {
+        let all = self.get_moves_for_color(color);
         let mut legal_moves = Vec::new();
         let mut mock_board = self.clone();
         for m in all {
@@ -89,6 +89,10 @@ impl Board {
             mock_board.undo_move(&m);
         }
         legal_moves
+    }
+
+    pub fn get_legal_moves(&self) -> Vec<Move> {
+        self.get_legal_moves_for_color(self.get_active_color())
     }
 
     fn get_moves_for_color(&self, color: Color) -> Vec<Move> {
@@ -135,7 +139,11 @@ impl Board {
     }
 
     pub fn is_checkmate(&self) -> bool {
-        self.get_legal_moves().is_empty()
+        self.get_legal_moves().is_empty() && self.is_in_check()
+    }
+
+    pub fn is_draw(&self) -> bool {
+        self.get_legal_moves().is_empty() && !self.is_in_check()
     }
 
     fn toggle_active_color(&mut self) {

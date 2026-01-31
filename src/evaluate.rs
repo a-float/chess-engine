@@ -1,7 +1,11 @@
 mod material;
+mod mobility;
+mod positioning;
 mod sum;
 
 pub use material::MaterialEvaluator;
+pub use mobility::MobilityEvaluator;
+pub use positioning::PositioningEvaluator;
 pub use sum::SumEvaluator;
 
 pub trait Evaluator {

@@ -4,11 +4,13 @@ use crate::board::square::Square;
 
 use super::Evaluator;
 
-pub struct MaterialEvaluator {}
+pub struct MaterialEvaluator {
+    weight: i32,
+}
 
 impl MaterialEvaluator {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(weight: i32) -> Self {
+        Self { weight }
     }
 }
 
@@ -35,6 +37,6 @@ impl Evaluator for MaterialEvaluator {
                 }
             }
         }
-        score * board.get_active_color().get_value()
+        score * board.get_active_color().get_value() * self.weight
     }
 }

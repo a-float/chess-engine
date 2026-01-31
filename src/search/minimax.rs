@@ -11,10 +11,15 @@ impl MinimaxSearch {
 
         let mut best_value;
         let mut best_move = None;
+        let legal_moves = board.get_legal_moves();
+
+        if board.is_draw() {
+            return (None, 0);
+        }
 
         if board.get_active_color() == Color::White {
             best_value = i32::MIN;
-            for mv in board.get_legal_moves() {
+            for mv in legal_moves {
                 board.apply_move(&mv);
                 let eval = MinimaxSearch::minimax(board, evaluator, depth - 1).1;
                 if eval > best_value {
@@ -25,7 +30,7 @@ impl MinimaxSearch {
             }
         } else {
             best_value = i32::MAX;
-            for mv in board.get_legal_moves() {
+            for mv in legal_moves {
                 board.apply_move(&mv);
                 let eval = MinimaxSearch::minimax(board, evaluator, depth - 1).1;
                 if eval < best_value {
