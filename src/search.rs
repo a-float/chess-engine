@@ -1,24 +1,10 @@
-use crate::{board::Board, r#move::Move};
-use rand::{rng, seq::IndexedRandom};
+mod minimax;
+mod random;
 
-pub struct Search {}
+use crate::{board::Board, evaluate::Evaluator, r#move::Move};
+pub use minimax::MinimaxSearch;
+pub use random::RandomSearch;
 
-impl Search {
-    pub fn random_move(board: &Board) -> Option<Move> {
-        let mut rng = rng();
-        let moves = board.get_legal_moves();
-        moves.choose(&mut rng).copied()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{board::Board, search::Search};
-
-    #[test]
-    fn test_random_move() {
-        let board = Board::from_fen("rnbqkbnr/pppppppp/P7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        let m = Search::random_move(&board);
-        assert!(board.get_legal_moves().contains(&m.unwrap()));
-    }
+pub trait SearchAlgorithm {
+    fn find_best_move(board: &Board, evaluator: &dyn Evaluator, depth: u8) -> Option<Move>;
 }

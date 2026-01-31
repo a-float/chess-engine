@@ -1,7 +1,9 @@
 use board::Board;
 use chess_engine::board;
+use chess_engine::evaluate::{MaterialEvaluator, SumEvaluator};
 use chess_engine::r#move;
 use chess_engine::r#move::get_square_attackers;
+use chess_engine::search::{MinimaxSearch, SearchAlgorithm};
 
 use std::{
     cell::Cell,
@@ -32,8 +34,8 @@ use crate::{
 
 const WHITE_ACTIVE_COLOR: Color = Color::Rgb(255, 165, 0);
 const BLACK_ACTIVE_COLOR: Color = Color::Rgb(0, 0, 205);
+const MUTED_COLOR: Color = Color::Rgb(164, 164, 164);
 
-#[derive(Debug)]
 pub struct App {
     board: Board,
     active_square: Option<Square>,
@@ -41,17 +43,25 @@ pub struct App {
     exit: bool,
     board_area: Cell<Rect>,
     move_history: Vec<Move>,
+    ai_enabled: bool,
+    ai_color: piece::Color,
+    ai_depth: u8,
+    ai_evaluator: SumEvaluator,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
-            board: Board::default(),
+            board: Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
             active_square: None,
             possible_moves: Vec::new(),
             exit: false,
             board_area: Cell::new(Rect::default()),
             move_history: Vec::new(),
+            ai_enabled: false,
+            ai_color: piece::Color::Black,
+            ai_depth: 3,
+            ai_evaluator: SumEvaluator::new(vec![Box::new(MaterialEvaluator::new())]),
         }
     }
 }
@@ -81,6 +91,11 @@ impl App {
             KeyCode::Char('Q') => self.exit(),
             KeyCode::Char('u') => self.undo_move(),
             KeyCode::Char('r') => self.restart_game(),
+            KeyCode::Char('a') => self.toggle_ai(),
+            KeyCode::Char('c') => self.toggle_ai_color(),
+            KeyCode::Char('+') | KeyCode::Char('=') => self.increase_ai_depth(),
+            KeyCode::Char('-') => self.decrease_ai_depth(),
+            KeyCode::Char('m') => self.make_ai_move(),
             _ => {}
         }
     }
@@ -94,6 +109,43 @@ impl App {
     fn restart_game(&mut self) {
         while !self.move_history.is_empty() {
             self.undo_move();
+        }
+    }
+
+    fn toggle_ai(&mut self) {
+        self.ai_enabled = !self.ai_enabled;
+    }
+
+    fn toggle_ai_color(&mut self) {
+        self.ai_color = self.ai_color.opposite();
+    }
+
+    fn increase_ai_depth(&mut self) {
+        if self.ai_depth < 10 {
+            self.ai_depth += 1;
+        }
+    }
+
+    fn decrease_ai_depth(&mut self) {
+        if self.ai_depth > 1 {
+            self.ai_depth -= 1;
+        }
+    }
+
+    fn make_ai_move(&mut self) {
+        if let Some(best_move) =
+            MinimaxSearch::find_best_move(&self.board, &self.ai_evaluator, self.ai_depth)
+        {
+            self.board.apply_move(&best_move);
+            self.move_history.push(best_move);
+            self.active_square = None;
+            self.possible_moves.clear();
+        }
+    }
+
+    fn check_and_make_ai_move(&mut self) {
+        if self.ai_enabled && self.board.get_active_color() == self.ai_color {
+            self.make_ai_move();
         }
     }
 
@@ -132,6 +184,7 @@ impl App {
             self.board.apply_move(m);
             self.active_square = None;
             self.move_history.push(*m);
+            self.check_and_make_ai_move();
         }
 
         self.possible_moves = self.active_square.map_or(Vec::new(), |square| {
@@ -359,14 +412,52 @@ impl App {
             )
             .render(area, buf);
     }
+
+    fn render_ai_info(&self, area: Rect, buf: &mut Buffer) {
+        let eval_line = self
+            .ai_evaluator
+            .get_evaluators()
+            .iter()
+            .map(|e| format!("{}: {}", e.name(), e.evaluate(&self.board)))
+            .collect::<Vec<String>>()
+            .join(" | ");
+
+        let lines = vec![
+            Line::from(vec![
+                "AI: ".into(),
+                if self.ai_enabled {
+                    "ON".green().bold()
+                } else {
+                    "OFF".red().bold()
+                },
+                " (".into(),
+                format!("{}", self.ai_color).cyan().into(),
+                ", depth: ".into(),
+                format!("{}", self.ai_depth).yellow().bold(),
+                ")".into(),
+            ]),
+            Line::from(eval_line).fg(Color::Cyan),
+            Line::from("a: toggle | c: color | +/-: depth | m: move").fg(MUTED_COLOR),
+        ];
+
+        Paragraph::new(lines)
+            .block(
+                Block::bordered()
+                    .title("AI Settings")
+                    .padding(Padding::uniform(1)),
+            )
+            .render(area, buf);
+    }
 }
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let horizontal = Layout::horizontal([Constraint::Length(48), Constraint::Fill(1)]);
         let [left_area, right_area] = horizontal.areas(area);
-        let vertical = Layout::vertical([Constraint::Length(48), Constraint::Length(2)]);
-        let [top_area, bottom_area] = vertical.areas(left_area);
+        let vertical_left = Layout::vertical([Constraint::Length(48), Constraint::Length(2)]);
+        let [top_area, bottom_area] = vertical_left.areas(left_area);
+        let vertical_right = Layout::vertical([Constraint::Fill(1), Constraint::Length(8)]);
+        let [game_state_area, ai_info_area] = vertical_right.areas(right_area);
 
         let title = Line::from(" Chess ".bold());
 
@@ -378,13 +469,12 @@ impl Widget for &App {
 
         self.render_board(board_area, buf);
 
-        self.render_game_state(right_area, buf);
+        self.render_game_state(game_state_area, buf);
+        self.render_ai_info(ai_info_area, buf);
 
-        Paragraph::new(
-            Line::from(" q: quit, u: undo move, r: restart").fg(Color::Rgb(164, 164, 164)),
-        )
-        .centered()
-        .render(bottom_area, buf);
+        Paragraph::new(Line::from(" q: quit | u: undo | r: restart").fg(MUTED_COLOR))
+            .centered()
+            .render(bottom_area, buf);
 
         Block::bordered()
             .title_top(title.centered())

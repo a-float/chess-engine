@@ -23,6 +23,13 @@ impl Color {
             Color::Black => Color::White,
         }
     }
+
+    pub fn get_value(&self) -> i32 {
+        match *self {
+            Color::White => 1,
+            Color::Black => -1,
+        }
+    }
 }
 
 impl Display for Color {
