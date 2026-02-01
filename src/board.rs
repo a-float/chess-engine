@@ -150,6 +150,13 @@ impl Board {
         self.is_white_turn = !self.is_white_turn;
     }
 
+    pub fn get_move_from_algebraic_notation(&self, notation: &str) -> Option<Move> {
+        self.get_legal_moves()
+            .iter()
+            .find(|m| m.to_long_algebraic_notation() == notation)
+            .copied()
+    }
+
     fn update_castling_rights(rights: &mut CastlingRights, m: &Move) {
         if m.piece == Piece::BLACK_KING {
             rights.black_king_side = false;

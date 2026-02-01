@@ -61,6 +61,23 @@ impl Piece {
         self.color
     }
 
+    pub fn to_ascii_char(&self) -> char {
+        match *self {
+            Piece::BLACK_BISHOP => 'B',
+            Piece::BLACK_KING => 'K',
+            Piece::BLACK_KNIGHT => 'N',
+            Piece::BLACK_PAWN => 'P',
+            Piece::BLACK_QUEEN => 'Q',
+            Piece::BLACK_ROOK => 'R',
+            Piece::WHITE_BISHOP => 'b',
+            Piece::WHITE_KING => 'k',
+            Piece::WHITE_KNIGHT => 'n',
+            Piece::WHITE_PAWN => 'p',
+            Piece::WHITE_QUEEN => 'q',
+            Piece::WHITE_ROOK => 'r',
+        }
+    }
+
     pub fn to_char(&self) -> char {
         match *self {
             Piece::BLACK_BISHOP => '♗',

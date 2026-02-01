@@ -63,6 +63,15 @@ impl Move {
         }
     }
 
+    pub fn to_long_algebraic_notation(&self) -> String {
+        let mut notation = String::new();
+        notation.push_str(&format!("{}{}", self.from, self.to));
+        if let Some(promotion_piece) = self.promotion {
+            notation.push(promotion_piece.to_ascii_char());
+        }
+        notation
+    }
+
     fn with_capture(&mut self, capture: Piece) -> Self {
         self.capture = Some(capture);
         *self
@@ -457,6 +466,36 @@ mod tests {
             let board = Board::from_fen("r3k2r/8/8/4R3/8/8/8/8 w KQkq - 0 1");
             let moves = get_castling_moves(&board, Color::White);
             assert_eq!(moves.len(), 0);
+        }
+    }
+
+    mod algebraic_notation {
+        use super::*;
+
+        #[test]
+        fn test_to_long_algebraic_notation() {
+            let m = Move::new(
+                Square { file: 4, rank: 1 },
+                Square { file: 4, rank: 3 },
+                Piece::WHITE_PAWN,
+            );
+            assert_eq!(m.to_long_algebraic_notation(), "e2e4");
+
+            let m_capture = Move::new(
+                Square { file: 3, rank: 4 },
+                Square { file: 4, rank: 5 },
+                Piece::WHITE_PAWN,
+            )
+            .with_capture(Piece::BLACK_PAWN);
+            assert_eq!(m_capture.to_long_algebraic_notation(), "d5e6");
+
+            let m_promotion = Move::new(
+                Square { file: 6, rank: 6 },
+                Square { file: 6, rank: 7 },
+                Piece::WHITE_PAWN,
+            )
+            .with_promotion(Piece::WHITE_QUEEN);
+            assert_eq!(m_promotion.to_long_algebraic_notation(), "g7g8Q");
         }
     }
 
