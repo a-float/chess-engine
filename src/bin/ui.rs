@@ -1,9 +1,9 @@
 use board::Board;
-use chess_engine::board;
-use chess_engine::evaluate::{MaterialEvaluator, PositioningEvaluator, SumEvaluator};
-use chess_engine::r#move;
-use chess_engine::r#move::get_square_attackers;
-use chess_engine::search::{MinimaxSearch, SearchAlgorithm};
+use checkmatier::board;
+use checkmatier::evaluate::{MaterialEvaluator, PositioningEvaluator, SumEvaluator};
+use checkmatier::r#move;
+use checkmatier::r#move::get_square_attackers;
+use checkmatier::search::{MinimaxSearch, SearchAlgorithm};
 
 use std::{
     cell::Cell,

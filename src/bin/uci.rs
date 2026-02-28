@@ -5,7 +5,7 @@ use checkmatier::Board;
 use checkmatier::evaluate::{MaterialEvaluator, PositioningEvaluator, SumEvaluator};
 use checkmatier::search::{MinimaxSearch, SearchAlgorithm};
 
-const ENGNINE_NAME: &str = env!("CARGO_PKG_NAME");
+const ENGINE_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -21,13 +21,13 @@ fn capitalize(s: &str) -> String {
 Based on https://official-stockfish.github.io/docs/stockfish-wiki/UCI-&-Commands.html
 */
 fn main() {
-    println!("This is a UCI chess engine interface.");
+    println!("{} {} made by Mati", capitalize(ENGINE_NAME), VERSION);
     let mut input = String::new();
     let mut board = Board::default();
 
     loop {
-        print!("> ");
-        io::stdout().flush().unwrap();
+        eprint!("> ");
+        io::stderr().flush().unwrap();
         input.clear();
         std::io::stdin()
             .read_line(&mut input)
@@ -38,12 +38,23 @@ fn main() {
         match command {
             "quit" => break,
             "uci" => {
-                println!("id name {} {}", capitalize(ENGNINE_NAME), VERSION);
+                println!("id name {} {}", capitalize(ENGINE_NAME), VERSION);
                 println!("id author {}", AUTHORS);
                 println!("uciok");
             }
-            "ucinewgame" => println!("readyok"),
-            "isready" => println!("readyok"),
+            "debug on" => {
+                eprintln!("Debug mode enabled");
+            }
+            "debug off" => {
+                eprintln!("Debug mode disabled");
+            }
+            _ if parts[0] == "setoption" => {}
+            "ucinewgame" => {
+                println!("readyok");
+            }
+            "isready" => {
+                println!("readyok");
+            }
             _ if parts[0] == "position" => {
                 board = match parts[1] {
                     "startpos" => Board::default(),
@@ -67,10 +78,9 @@ fn main() {
                 let moves_index = parts.iter().position(|&x| x == "moves");
                 if let Some(index) = moves_index {
                     for alg_move in &parts[index + 1..] {
-                        println!("Applying move: {:?}", alg_move);
                         let m = board.get_move_from_algebraic_notation(alg_move);
                         if m.is_none() {
-                            println!("Invalid move: {}", alg_move);
+                            eprintln!("Invalid move: {}", alg_move);
                             continue;
                         }
                         board.apply_move(&m.unwrap());
@@ -106,7 +116,9 @@ fn main() {
                     println!("bestmove (none)");
                 }
             }
-            _ => println!("Unrecognized command"),
+            _ => {
+                eprintln!("Unrecognized command");
+            }
         }
     }
 }
