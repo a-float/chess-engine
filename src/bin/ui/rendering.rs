@@ -1,235 +1,25 @@
-use board::Board;
-use checkmatier::board;
-use checkmatier::evaluate::{MaterialEvaluator, PositioningEvaluator, SumEvaluator};
-use checkmatier::r#move;
+use super::app::App;
+use checkmatier::board::{piece, square::Square};
 use checkmatier::r#move::get_square_attackers;
-use checkmatier::search::{MinimaxSearch, SearchAlgorithm};
-
-use std::{
-    cell::Cell,
-    io::{self, Error, stdout},
-    time::{Duration, Instant},
-};
-
 use ratatui::{
     buffer::Buffer,
-    crossterm::{
-        ExecutableCommand,
-        event::{
-            self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
-            MouseEvent, MouseEventKind,
-        },
-    },
-    layout::{Constraint, Layout, Position, Rect, Spacing},
+    layout::{Constraint, Layout, Rect, Spacing},
     style::{Color, Style, Stylize},
     symbols::{border, merge::MergeStrategy},
     text::Line,
     widgets::{Block, Padding, Paragraph, Widget},
-    *,
+    Frame,
 };
 
-use crate::{
-    board::{piece, square::Square},
-    r#move::Move,
-};
-
-const WHITE_ACTIVE_COLOR: Color = Color::Rgb(255, 165, 0);
-const BLACK_ACTIVE_COLOR: Color = Color::Rgb(0, 0, 205);
-const MUTED_COLOR: Color = Color::Rgb(164, 164, 164);
-
-pub struct App {
-    board: Board,
-    active_square: Option<Square>,
-    possible_moves: Vec<Move>,
-    exit: bool,
-    board_area: Cell<Rect>,
-    move_history: Vec<Move>,
-    ai_enabled: bool,
-    ai_color: piece::Color,
-    ai_depth: u8,
-    ai_evaluator: SumEvaluator,
-    ai_last_move_time: Option<Duration>,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            board: Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
-            active_square: None,
-            possible_moves: Vec::new(),
-            exit: false,
-            board_area: Cell::new(Rect::default()),
-            move_history: Vec::new(),
-            ai_enabled: false,
-            ai_color: piece::Color::Black,
-            ai_depth: 3,
-            ai_evaluator: SumEvaluator::new(vec![
-                Box::new(MaterialEvaluator::new(10)),
-                Box::new(PositioningEvaluator::new(1)),
-            ]),
-            ai_last_move_time: None,
-        }
-    }
-}
+pub const WHITE_ACTIVE_COLOR: Color = Color::Rgb(255, 165, 0);
+pub const BLACK_ACTIVE_COLOR: Color = Color::Rgb(0, 0, 205);
+pub const MUTED_COLOR: Color = Color::Rgb(164, 164, 164);
 
 impl App {
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        stdout().execute(EnableMouseCapture).unwrap();
-        while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events()?;
-        }
-        stdout().execute(DisableMouseCapture).unwrap();
-        Ok(())
-    }
-
-    fn draw(&self, frame: &mut Frame) {
+    pub fn draw(&self, frame: &mut Frame) {
         frame.render_widget(self, frame.area());
     }
 
-    fn exit(&mut self) {
-        self.exit = true;
-    }
-
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            KeyCode::Char('Q') => self.exit(),
-            KeyCode::Char('u') => self.undo_move(),
-            KeyCode::Char('r') => self.restart_game(),
-            KeyCode::Char('a') => self.toggle_ai(),
-            KeyCode::Char('c') => self.toggle_ai_color(),
-            KeyCode::Char('+') | KeyCode::Char('=') => self.increase_ai_depth(),
-            KeyCode::Char('-') => self.decrease_ai_depth(),
-            KeyCode::Char('m') => self.make_ai_move(),
-            _ => {}
-        }
-    }
-
-    fn undo_move(&mut self) {
-        if let Some(last_move) = self.move_history.pop() {
-            self.board.undo_move(&last_move);
-        }
-    }
-
-    fn restart_game(&mut self) {
-        while !self.move_history.is_empty() {
-            self.undo_move();
-        }
-    }
-
-    fn toggle_ai(&mut self) {
-        self.ai_enabled = !self.ai_enabled;
-    }
-
-    fn toggle_ai_color(&mut self) {
-        self.ai_color = self.ai_color.opposite();
-    }
-
-    fn increase_ai_depth(&mut self) {
-        if self.ai_depth < 10 {
-            self.ai_depth += 1;
-        }
-    }
-
-    fn decrease_ai_depth(&mut self) {
-        if self.ai_depth > 1 {
-            self.ai_depth -= 1;
-        }
-    }
-
-    fn make_ai_move(&mut self) {
-        let start = Instant::now();
-        if let Some(best_move) =
-            MinimaxSearch::find_best_move(&self.board, &self.ai_evaluator, self.ai_depth)
-        {
-            self.ai_last_move_time = Some(start.elapsed());
-            self.board.apply_move(&best_move);
-            self.move_history.push(best_move);
-            self.active_square = None;
-            self.possible_moves.clear();
-        }
-    }
-
-    fn check_and_make_ai_move(&mut self) {
-        if self.ai_enabled && self.board.get_active_color() == self.ai_color {
-            self.make_ai_move();
-        }
-    }
-
-    fn handle_board_click(&mut self, mouse_event: MouseEvent) -> () {
-        let board_area = self.board_area.get();
-        let square_width = 5;
-        let square_height = 2;
-        let new_square = Square::new(
-            ((mouse_event.column - board_area.x) / square_width) as i8 - 1,
-            7 - ((mouse_event.row - board_area.y) / square_height) as i8,
-        );
-
-        if new_square.is_none() {
-            self.active_square = None;
-            self.possible_moves.clear();
-            return;
-        }
-
-        let piece = self.board.get_piece(new_square.unwrap());
-
-        let end_move = self
-            .possible_moves
-            .iter()
-            .find(|m| m.to == new_square.unwrap());
-
-        self.active_square = if new_square == self.active_square
-            // || end_move.is_none() && piece.is_none()
-            || piece.is_some_and(|p| p.get_color() != self.board.get_active_color())
-        {
-            None
-        } else {
-            new_square
-        };
-
-        if let Some(m) = end_move {
-            self.board.apply_move(m);
-            self.active_square = None;
-            self.move_history.push(*m);
-            self.check_and_make_ai_move();
-        }
-
-        self.possible_moves = self.active_square.map_or(Vec::new(), |square| {
-            self.board
-                .get_legal_moves()
-                .iter()
-                .filter(|m| m.from == square)
-                .copied()
-                .collect()
-        });
-    }
-
-    fn handle_events(&mut self) -> io::Result<()> {
-        match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
-            }
-            Event::Mouse(mouse_event)
-                if mouse_event.kind == MouseEventKind::Up(event::MouseButton::Left) =>
-            {
-                if self
-                    .board_area
-                    .get()
-                    .contains(Position::new(mouse_event.column, mouse_event.row))
-                {
-                    self.handle_board_click(mouse_event);
-                }
-            }
-            _ => {}
-        };
-        Ok(())
-    }
-}
-
-impl App {
     fn get_active_style_for_side(color: piece::Color) -> Style {
         match color {
             piece::Color::Black => Style::default().fg(BLACK_ACTIVE_COLOR),
@@ -393,21 +183,29 @@ impl App {
             let white_attackers =
                 get_square_attackers(&mut mut_board, active_sq, piece::Color::Black);
 
-            for (attacker, square) in white_attackers {
+            if !white_attackers.is_empty() {
+                let attackers_str = white_attackers
+                    .iter()
+                    .map(|(attacker, square)| format!("{} {}", attacker.to_char(), square))
+                    .collect::<Vec<String>>()
+                    .join(" ");
+                
                 lines.push(Line::from(vec![
                     "Attacked by: ".into(),
-                    format!("{}  from {}", attacker.to_char(), square)
-                        .fg(WHITE_ACTIVE_COLOR)
-                        .bold(),
+                    attackers_str.fg(WHITE_ACTIVE_COLOR).bold(),
                 ]));
             }
 
-            for (attacker, square) in black_attackers {
+            if !black_attackers.is_empty() {
+                let attackers_str = black_attackers
+                    .iter()
+                    .map(|(attacker, square)| format!("{} {}", attacker.to_char(), square))
+                    .collect::<Vec<String>>()
+                    .join(" ");
+                
                 lines.push(Line::from(vec![
                     "Attacked by: ".into(),
-                    format!("{}  from {}", attacker.to_char(), square)
-                        .fg(BLACK_ACTIVE_COLOR)
-                        .bold(),
+                    attackers_str.fg(BLACK_ACTIVE_COLOR).bold(),
                 ]));
             }
         }
@@ -496,11 +294,4 @@ impl Widget for &App {
             .border_set(border::THICK)
             .render(area, buf);
     }
-}
-
-fn main() -> Result<(), Error> {
-    let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
-    ratatui::restore();
-    app_result
 }
