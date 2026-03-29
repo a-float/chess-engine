@@ -1,9 +1,15 @@
 use std::io;
 use std::io::Write;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+use std::thread;
+use std::time::Duration;
 
 use checkmatier::Board;
-use checkmatier::evaluate::{MaterialEvaluator, PositioningEvaluator, SumEvaluator};
-use checkmatier::search::{MinimaxSearch, SearchAlgorithm};
+use checkmatier::evaluate::{Evaluator, MaterialEvaluator, PositioningEvaluator, SumEvaluator};
+use checkmatier::search::{MinimaxSearch, SearchAlgorithm, SearchInfo, SearchLimits};
 
 const ENGINE_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -17,107 +23,176 @@ fn capitalize(s: &str) -> String {
     }
 }
 
+struct UciEngine {
+    board: Board,
+    #[allow(dead_code)]
+    search: MinimaxSearch,
+    stop_flag: Arc<AtomicBool>,
+}
+
+impl UciEngine {
+    fn new() -> Self {
+        Self {
+            board: Board::default(),
+            search: MinimaxSearch::new(),
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    fn handle_position(&mut self, parts: &[&str]) {
+        if parts.len() > 1 && parts[1] == "startpos" {
+            self.board = Board::default();
+        } else if parts.len() > 2 && parts[1] == "fen" {
+            let fen_end = parts
+                .iter()
+                .position(|&s| s == "moves")
+                .unwrap_or(parts.len());
+            let fen = parts[2..fen_end].join(" ");
+            self.board = Board::from_fen(&fen);
+        } else {
+            eprintln!("Invalid position command: {}", parts.join(" "));
+            return;
+        }
+
+        if let Some(moves_idx) = parts.iter().position(|&s| s == "moves") {
+            for move_str in &parts[moves_idx + 1..] {
+                if let Some(mv) = self.board.get_move_from_algebraic_notation(move_str) {
+                    self.board.apply_move(&mv);
+                } else {
+                    eprintln!("Invalid move: {}", move_str);
+                }
+            }
+        }
+    }
+
+    fn handle_go(&mut self, parts: &[&str]) {
+        self.stop_flag.store(false, Ordering::Relaxed);
+
+        let mut limits = SearchLimits {
+            max_depth: Some(10),
+            max_time: None,
+            max_nodes: None,
+        };
+
+        let mut i = 1;
+        while i < parts.len() {
+            match parts[i] {
+                "depth" if i + 1 < parts.len() => {
+                    limits.max_depth = parts[i + 1].parse().ok();
+                    i += 2;
+                }
+                "movetime" if i + 1 < parts.len() => {
+                    if let Ok(ms) = parts[i + 1].parse::<u64>() {
+                        limits.max_time = Some(Duration::from_millis(ms));
+                    }
+                    i += 2;
+                }
+                "nodes" if i + 1 < parts.len() => {
+                    limits.max_nodes = parts[i + 1].parse().ok();
+                    i += 2;
+                }
+                "infinite" => {
+                    limits.max_depth = None;
+                    limits.max_time = None;
+                    i += 1;
+                }
+                _ => i += 1,
+            }
+        }
+
+        println!("Limits {:?}", limits);
+        let board = self.board.clone();
+        let stop_flag = self.stop_flag.clone();
+
+        thread::spawn(move || {
+            let mut search = MinimaxSearch::new();
+            let evaluator: Arc<dyn Evaluator> = Arc::new(SumEvaluator::new(vec![
+                Box::new(MaterialEvaluator::new(2)),
+                Box::new(PositioningEvaluator::new(1)),
+            ]));
+
+            let info_callback = Box::new(|info: SearchInfo| {
+                println!(
+                    "info depth {} score cp {} nodes {} time {} pv {}",
+                    info.depth,
+                    info.score,
+                    info.nodes,
+                    info.time.as_millis(),
+                    info.pv
+                        .iter()
+                        .map(|m| m.to_long_algebraic_notation())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                );
+            });
+
+            if let Some(best_move) =
+                search.search(&board, evaluator, limits, stop_flag, Some(info_callback))
+            {
+                println!("bestmove {}", best_move.to_long_algebraic_notation());
+            } else {
+                println!("bestmove (none)");
+            }
+        });
+    }
+
+    fn handle_stop(&mut self) {
+        self.stop_flag.store(true, Ordering::Relaxed);
+    }
+}
+
 /**
 Based on https://official-stockfish.github.io/docs/stockfish-wiki/UCI-&-Commands.html
 */
 fn main() {
     println!("{} {} made by Mati", capitalize(ENGINE_NAME), VERSION);
+
+    let mut engine = UciEngine::new();
     let mut input = String::new();
-    let mut board = Board::default();
 
     loop {
         eprint!("> ");
         io::stderr().flush().unwrap();
         input.clear();
+
         std::io::stdin()
             .read_line(&mut input)
             .expect("Failed to read line");
-        let command = input.trim();
-        let parts = command.split_whitespace().collect::<Vec<&str>>();
 
-        match command {
+        let command = input.trim();
+        let parts: Vec<&str> = command.split_whitespace().collect();
+
+        if parts.is_empty() {
+            continue;
+        }
+
+        match parts[0] {
             "quit" => break,
             "uci" => {
                 println!("id name {} {}", capitalize(ENGINE_NAME), VERSION);
                 println!("id author {}", AUTHORS);
                 println!("uciok");
             }
-            "debug on" => {
-                eprintln!("Debug mode enabled");
+            "debug" => {
+                if parts.len() > 1 {
+                    match parts[1] {
+                        "on" => eprintln!("Debug mode enabled"),
+                        "off" => eprintln!("Debug mode disabled"),
+                        _ => {}
+                    }
+                }
             }
-            "debug off" => {
-                eprintln!("Debug mode disabled");
-            }
-            _ if parts[0] == "setoption" => {}
+            "isready" => println!("readyok"),
+            "setoption" => {}
             "ucinewgame" => {
-                println!("readyok");
+                engine = UciEngine::new();
             }
-            "isready" => {
-                println!("readyok");
-            }
-            _ if parts[0] == "position" => {
-                board = match parts[1] {
-                    "startpos" => Board::default(),
-                    "fen" => {
-                        let mut fen_str = String::new();
-                        for part in &parts[2..] {
-                            if part == &"moves" {
-                                break;
-                            }
-                            fen_str.push_str(part);
-                            fen_str.push(' ');
-                        }
-                        fen_str = fen_str.trim().to_string();
-                        Board::from_fen(&fen_str)
-                    }
-                    _ => {
-                        println!("Unrecognized position command");
-                        continue;
-                    }
-                };
-                let moves_index = parts.iter().position(|&x| x == "moves");
-                if let Some(index) = moves_index {
-                    for alg_move in &parts[index + 1..] {
-                        let m = board.get_move_from_algebraic_notation(alg_move);
-                        if m.is_none() {
-                            eprintln!("Invalid move: {}", alg_move);
-                            continue;
-                        }
-                        board.apply_move(&m.unwrap());
-                    }
-                }
-            }
-            "show" => println!("{}", board),
-            _ if parts[0] == "go" => {
-                let mut depth = 3;
-                let evaluator = SumEvaluator::new(vec![
-                    Box::new(MaterialEvaluator::new(10)),
-                    Box::new(PositioningEvaluator::new(1)),
-                ]);
-
-                for i in (1..parts.len()).step_by(2) {
-                    match parts[i] {
-                        "depth" => {
-                            if i + 1 < parts.len() {
-                                depth = parts[i + 1].parse().unwrap();
-                            }
-                        }
-                        _ => {
-                            println!("Unrecognized go command: {}", parts[i]);
-                            continue;
-                        }
-                    }
-                }
-
-                let best_move = MinimaxSearch::find_best_move(&board, &evaluator, depth);
-                if let Some(mv) = best_move {
-                    println!("bestmove {}", mv.to_long_algebraic_notation());
-                } else {
-                    println!("bestmove (none)");
-                }
-            }
+            "position" => engine.handle_position(&parts),
+            "go" => engine.handle_go(&parts),
+            "stop" => engine.handle_stop(),
+            "show" => println!("{}", engine.board),
             _ => {
-                eprintln!("Unrecognized command");
+                eprintln!("Unrecognized command: {}", command);
             }
         }
     }
