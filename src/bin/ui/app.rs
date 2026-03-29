@@ -1,9 +1,13 @@
 use checkmatier::board::{Board, piece, square::Square};
 use checkmatier::evaluate::{MaterialEvaluator, PositioningEvaluator, SumEvaluator};
 use checkmatier::r#move::Move;
-use std::cell::Cell;
-use std::time::Duration;
 use ratatui::layout::Rect;
+use std::cell::Cell;
+use std::sync::{
+    Arc,
+    mpsc::{self, Receiver, Sender},
+};
+use std::time::Instant;
 
 pub struct App {
     pub board: Board,
@@ -15,12 +19,20 @@ pub struct App {
     pub ai_enabled: bool,
     pub ai_color: piece::Color,
     pub ai_depth: u8,
-    pub ai_evaluator: SumEvaluator,
-    pub ai_last_move_time: Option<Duration>,
+    pub ai_evaluator: Arc<SumEvaluator>,
+    pub ai_last_start_move_time: Option<Instant>,
+    pub ai_last_end_move_time: Option<Instant>,
+    // Channel where background AI search threads send their found move (or None)
+    pub ai_move_rx: Receiver<Option<Move>>,
+    pub ai_move_tx: Sender<Option<Move>>,
+    // Whether an AI search is currently running
+    pub ai_searching: bool,
 }
 
 impl Default for App {
     fn default() -> Self {
+        let (tx, rx) = mpsc::channel();
+
         Self {
             board: Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
             active_square: None,
@@ -31,11 +43,15 @@ impl Default for App {
             ai_enabled: false,
             ai_color: piece::Color::Black,
             ai_depth: 3,
-            ai_evaluator: SumEvaluator::new(vec![
+            ai_evaluator: Arc::new(SumEvaluator::new(vec![
                 Box::new(MaterialEvaluator::new(10)),
                 Box::new(PositioningEvaluator::new(1)),
-            ]),
-            ai_last_move_time: None,
+            ])),
+            ai_last_start_move_time: None,
+            ai_last_end_move_time: None,
+            ai_move_rx: rx,
+            ai_move_tx: tx,
+            ai_searching: false,
         }
     }
 }

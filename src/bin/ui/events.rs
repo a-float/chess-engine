@@ -3,26 +3,29 @@ use checkmatier::board::square::Square;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
 use ratatui::layout::Position;
 use std::io;
+use std::time::Duration;
 
 impl App {
     pub fn handle_events(&mut self) -> io::Result<()> {
-        match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
-            }
-            Event::Mouse(mouse_event)
-                if mouse_event.kind == MouseEventKind::Up(event::MouseButton::Left) =>
-            {
-                if self
-                    .board_area
-                    .get()
-                    .contains(Position::new(mouse_event.column, mouse_event.row))
-                {
-                    self.handle_board_click(mouse_event);
+        if event::poll(Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                    self.handle_key_event(key_event)
                 }
-            }
-            _ => {}
-        };
+                Event::Mouse(mouse_event)
+                    if mouse_event.kind == MouseEventKind::Up(event::MouseButton::Left) =>
+                {
+                    if self
+                        .board_area
+                        .get()
+                        .contains(Position::new(mouse_event.column, mouse_event.row))
+                    {
+                        self.handle_board_click(mouse_event);
+                    }
+                }
+                _ => {}
+            };
+        }
         Ok(())
     }
 

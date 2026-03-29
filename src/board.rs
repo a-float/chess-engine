@@ -72,10 +72,6 @@ impl Board {
         return self.state_history.last().unwrap();
     }
 
-    // fn get_all_moves(&self) -> Vec<Move> {
-    //     self.get_moves_for_color(self.get_active_color())
-    // }
-
     pub fn get_legal_moves_for_color(&self, color: Color) -> Vec<Move> {
         let all = self.get_moves_for_color(color);
         let mut legal_moves = Vec::new();

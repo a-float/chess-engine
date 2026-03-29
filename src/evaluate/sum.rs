@@ -9,8 +9,11 @@ impl SumEvaluator {
         Self { evaluators }
     }
 
-    pub fn get_evaluators(&self) -> &Vec<Box<dyn Evaluator>> {
-        &self.evaluators
+    pub fn evaluate_breakdown(&self, board: &crate::Board) -> Vec<(String, i32)> {
+        self.evaluators
+            .iter()
+            .map(|e| (e.name(), e.evaluate(board)))
+            .collect()
     }
 }
 

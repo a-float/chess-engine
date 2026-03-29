@@ -22,6 +22,7 @@ fn run(terminal: &mut DefaultTerminal) -> io::Result<()> {
     stdout().execute(EnableMouseCapture).unwrap();
     
     while !app.exit {
+        app.poll_ai_move();
         terminal.draw(|frame| app.draw(frame))?;
         app.handle_events()?;
     }

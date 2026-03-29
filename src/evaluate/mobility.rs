@@ -1,11 +1,13 @@
 use super::Evaluator;
 use crate::{Board, board::piece::Color};
 
+#[allow(dead_code)]
 pub struct MobilityEvaluator {
     weight: i32,
 }
 
 impl MobilityEvaluator {
+    #[allow(dead_code)]
     pub fn new(weight: i32) -> Self {
         Self { weight }
     }

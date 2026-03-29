@@ -1,6 +1,6 @@
 use std::{env, time::SystemTime};
 
-use chess_engine::Board;
+use checkmatier::Board;
 
 #[derive(Default)]
 struct Results {

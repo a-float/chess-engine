@@ -1,14 +1,16 @@
+use std::time::Instant;
+
 use super::app::App;
 use checkmatier::board::{piece, square::Square};
 use checkmatier::r#move::get_square_attackers;
 use ratatui::{
+    Frame,
     buffer::Buffer,
     layout::{Constraint, Layout, Rect, Spacing},
     style::{Color, Style, Stylize},
     symbols::{border, merge::MergeStrategy},
     text::Line,
     widgets::{Block, Padding, Paragraph, Widget},
-    Frame,
 };
 
 pub const WHITE_ACTIVE_COLOR: Color = Color::Rgb(255, 165, 0);
@@ -189,7 +191,7 @@ impl App {
                     .map(|(attacker, square)| format!("{} {}", attacker.to_char(), square))
                     .collect::<Vec<String>>()
                     .join(" ");
-                
+
                 lines.push(Line::from(vec![
                     "Attacked by: ".into(),
                     attackers_str.fg(WHITE_ACTIVE_COLOR).bold(),
@@ -202,7 +204,7 @@ impl App {
                     .map(|(attacker, square)| format!("{} {}", attacker.to_char(), square))
                     .collect::<Vec<String>>()
                     .join(" ");
-                
+
                 lines.push(Line::from(vec![
                     "Attacked by: ".into(),
                     attackers_str.fg(BLACK_ACTIVE_COLOR).bold(),
@@ -222,13 +224,22 @@ impl App {
     fn render_ai_info(&self, area: Rect, buf: &mut Buffer) {
         let eval_line = self
             .ai_evaluator
-            .get_evaluators()
+            .evaluate_breakdown(&self.board)
             .iter()
-            .map(|e| format!("{}: {}", e.name(), e.evaluate_for_white(&self.board)))
+            .map(|(name, score)| format!("{}: {}", name, score))
             .collect::<Vec<String>>()
             .join(" | ");
 
-        let time_line = if let Some(duration) = self.ai_last_move_time {
+        let duration_option = match (
+            self.ai_last_start_move_time,
+            self.ai_last_end_move_time,
+            self.ai_searching,
+        ) {
+            (Some(start), _, true) => Some(Instant::now().duration_since(start)),
+            (Some(start), Some(end), false) => Some(end.duration_since(start)),
+            _ => None,
+        };
+        let time_line = if let Some(duration) = duration_option {
             format!("Last move: {:.2}s", duration.as_secs_f64())
         } else {
             "Last move: N/A".to_string()
@@ -247,6 +258,11 @@ impl App {
                 ", depth: ".into(),
                 format!("{}", self.ai_depth).yellow().bold(),
                 ")".into(),
+                if self.ai_searching {
+                    " [searching...]".into()
+                } else {
+                    "".into()
+                },
             ]),
             Line::from(eval_line).fg(Color::Cyan),
             Line::from(time_line).fg(Color::Yellow),
