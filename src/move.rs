@@ -67,7 +67,7 @@ impl Move {
         let mut notation = String::new();
         notation.push_str(&format!("{}{}", self.from, self.to));
         if let Some(promotion_piece) = self.promotion {
-            notation.push(promotion_piece.to_ascii_char());
+            notation.push(promotion_piece.to_ascii_char().to_ascii_uppercase());
         }
         notation
     }
@@ -240,7 +240,7 @@ fn get_castling_moves(board: &Board, color: Color) -> Vec<Move> {
     };
 
     if can_king_side
-        && [Square { file: 5, rank: 0 }, Square { file: 6, rank: 0 }]
+        && [Square { file: 5, rank }, Square { file: 6, rank }]
             .iter()
             .all(|&s| board.is_square_empty(s) && !board.is_square_attacked(s, color))
     {
@@ -256,7 +256,14 @@ fn get_castling_moves(board: &Board, color: Color) -> Vec<Move> {
             Square { file: 3, rank },
         ]
         .iter()
-        .all(|&s| board.is_square_empty(s) && !board.is_square_attacked(s, color))
+        .all(|&s| board.is_square_empty(s))
+        && [
+            // king doesn't cross file 1
+            Square { file: 2, rank },
+            Square { file: 3, rank },
+        ]
+        .iter()
+        .all(|&s| !board.is_square_attacked(s, color))
     {
         moves.push(
             Move::new(Square { file: 4, rank }, Square { file: 2, rank }, piece)
@@ -442,7 +449,7 @@ mod tests {
         }
 
         #[test]
-        fn test_castling_moves() {
+        fn test_castling_moves_white() {
             let board = Board::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
             let moves = get_castling_moves(&board, Color::White);
             assert_eq!(moves.len(), 2);
@@ -453,12 +460,33 @@ mod tests {
         }
 
         #[test]
+        fn test_castling_moves_black() {
+            let board = Board::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+            let moves = get_castling_moves(&board, Color::Black);
+            assert_eq!(moves.len(), 2);
+            assert!(moves.iter().any(|m| m.castling_rook_from_to
+                == Some((Square { file: 7, rank: 7 }, Square { file: 5, rank: 7 }))));
+            assert!(moves.iter().any(|m| m.castling_rook_from_to
+                == Some((Square { file: 0, rank: 7 }, Square { file: 3, rank: 7 }))));
+        }
+
+        #[test]
         fn test_no_castling_when_square_attacked() {
             let board = Board::from_fen("6r1/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
             let moves = get_castling_moves(&board, Color::Black);
             assert_eq!(moves.len(), 1);
             assert!(moves.iter().any(|m| m.castling_rook_from_to
                 == Some((Square { file: 0, rank: 7 }, Square { file: 3, rank: 7 }))));
+        }
+
+        #[test]
+        fn test_castling_queen_side_king_safe() {
+            let board = Board::from_fen("r3k2r/1R4R1/8/8/8/8/1r4r1/R3K2R w KQkq - 0 1");
+            let white_moves = get_castling_moves(&board, Color::White);
+            assert!(white_moves.len() == 1, "White should be able to castle");
+
+            let black_moves = get_castling_moves(&board, Color::Black);
+            assert!(black_moves.len() == 1, "Black should be able to castle");
         }
 
         #[test]
