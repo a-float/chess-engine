@@ -7,32 +7,35 @@ use crate::board::{
 use super::{Board, SquareArray};
 
 const FEN_CHARS: [(char, Piece); 12] = [
-    ('P', Piece::BLACK_PAWN),
-    ('R', Piece::BLACK_ROOK),
-    ('N', Piece::BLACK_KNIGHT),
-    ('B', Piece::BLACK_BISHOP),
-    ('Q', Piece::BLACK_QUEEN),
-    ('K', Piece::BLACK_KING),
-    ('p', Piece::WHITE_PAWN),
-    ('r', Piece::WHITE_ROOK),
-    ('n', Piece::WHITE_KNIGHT),
-    ('b', Piece::WHITE_BISHOP),
-    ('q', Piece::WHITE_QUEEN),
-    ('k', Piece::WHITE_KING),
+    ('P', Piece::WHITE_PAWN),
+    ('R', Piece::WHITE_ROOK),
+    ('N', Piece::WHITE_KNIGHT),
+    ('B', Piece::WHITE_BISHOP),
+    ('Q', Piece::WHITE_QUEEN),
+    ('K', Piece::WHITE_KING),
+    ('p', Piece::BLACK_PAWN),
+    ('r', Piece::BLACK_ROOK),
+    ('n', Piece::BLACK_KNIGHT),
+    ('b', Piece::BLACK_BISHOP),
+    ('q', Piece::BLACK_QUEEN),
+    ('k', Piece::BLACK_KING),
 ];
 
 fn read_pieces(piece_placement: &str) -> SquareArray {
     let mut pieces = [None; 64];
-    let mut i = 0;
+    let mut rank = 7;
+    let mut file: usize = 0;
     for val in piece_placement.chars() {
-        if let Some(digit) = val.to_digit(10) {
-            i += digit as usize;
-            continue;
+        if file > 7 {
+            file = 0;
+            rank -= 1;
         }
 
-        if let Some((_, square)) = FEN_CHARS.iter().find(|(c, _)| *c == val) {
-            pieces[i] = Some(*square);
-            i += 1;
+        if let Some(digit) = val.to_digit(10) {
+            file += digit as usize;
+        } else if let Some((_, square)) = FEN_CHARS.iter().find(|(c, _)| *c == val) {
+            pieces[rank * 8 + file] = Some(*square);
+            file += 1;
         }
     }
     pieces

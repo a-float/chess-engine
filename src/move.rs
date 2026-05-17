@@ -65,7 +65,13 @@ impl Move {
 
     pub fn to_long_algebraic_notation(&self) -> String {
         let mut notation = String::new();
-        notation.push_str(&format!("{}{}", self.from, self.to));
+        notation.push_str(&format!(
+            "{}{}{}{}",
+            self.piece.to_ascii_char().to_ascii_uppercase(),
+            self.from,
+            if self.capture.is_some() { "x" } else { "" },
+            self.to
+        ));
         if let Some(promotion_piece) = self.promotion {
             notation.push(promotion_piece.to_ascii_char().to_ascii_uppercase());
         }
@@ -374,7 +380,7 @@ impl Display for Move {
         )
     }
 }
-
+// TODO fen fix broke all test fens. Fix them, future me.
 #[cfg(test)]
 mod tests {
     use super::*;
