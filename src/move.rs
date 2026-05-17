@@ -503,6 +503,7 @@ mod tests {
         }
     }
 
+    // TODO fix these too. Also fix algebraic notation in general.
     mod algebraic_notation {
         use super::*;
 

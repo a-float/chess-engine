@@ -34,7 +34,7 @@ impl Default for App {
         let (tx, rx) = mpsc::channel();
 
         Self {
-            board: Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
+            board: Board::default(),
             active_square: None,
             possible_moves: Vec::new(),
             exit: false,

@@ -11,7 +11,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SearchLimits {
     pub max_depth: Option<u8>,
     pub max_time: Option<Duration>,
@@ -61,4 +61,19 @@ pub trait SearchAlgorithm {
         stop_flag: Arc<AtomicBool>,
         info_callback: Option<Box<dyn Fn(SearchInfo) + Send>>,
     ) -> Option<Move>;
+
+    fn search_simple(
+        &mut self,
+        board: &Board,
+        evaluator: Arc<dyn Evaluator>,
+        limits: SearchLimits,
+    ) -> Option<Move> {
+        self.search(
+            board,
+            evaluator,
+            limits,
+            Arc::new(AtomicBool::new(false)),
+            None,
+        )
+    }
 }
