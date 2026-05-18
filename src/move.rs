@@ -78,6 +78,33 @@ impl Move {
         notation
     }
 
+    // TODO disambiguation, check and mate symbols and castling
+    pub fn to_short_algebraic_notation(&self, _board: &Board) -> String {
+        let mut notation = String::new();
+        if self.piece.get_kind() != PieceKind::Pawn {
+            notation.push(self.piece.to_ascii_char().to_ascii_uppercase());
+        }
+        // TODO disambiguation
+        if self.capture.is_some() {
+            if self.piece.get_kind() == PieceKind::Pawn {
+                notation.push_str(&format!("{}", (b'a' + self.from.file) as char));
+            }
+            notation.push('x');
+        }
+        notation.push_str(&format!("{}", self.to));
+        if let Some(promotion_piece) = self.promotion {
+            notation.push('=');
+            notation.push(promotion_piece.to_ascii_char().to_ascii_uppercase());
+        }
+        // TODO check and mate symbols
+        notation
+    }
+
+    pub fn to_uci_notation(&self) -> String {
+        let mut long = self.to_long_algebraic_notation();
+        return long.drain(..4).collect();
+    }
+
     fn with_capture(&mut self, capture: Piece) -> Self {
         self.capture = Some(capture);
         *self

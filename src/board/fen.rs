@@ -84,30 +84,34 @@ impl Board {
     pub fn to_fen(&self) -> String {
         let mut fen_str = String::new();
         let mut streak = 0;
-        for idx in 0..64 {
-            let square = Square::from_index(idx).unwrap();
-            let piece = self.get_piece(square);
-            if piece.is_none() {
-                streak += 1;
-            } else {
-                if streak > 0 {
-                    fen_str.push_str(&format!("{}", streak));
-                    streak = 0;
+        for y in (0..8).rev() {
+            for x in 0..8 {
+                let idx = y * 8 + x;
+                let square = Square::from_index(idx).unwrap();
+                let piece = self.get_piece(square);
+                if piece.is_none() {
+                    streak += 1;
+                } else {
+                    if streak > 0 {
+                        fen_str.push_str(&format!("{}", streak));
+                        streak = 0;
+                    }
+                    let char = FEN_CHARS
+                        .iter()
+                        .find(|(_, p)| p == &piece.unwrap())
+                        .unwrap()
+                        .0;
+                    fen_str.push(char);
                 }
-                let char = FEN_CHARS
-                    .iter()
-                    .find(|(_, p)| p == &piece.unwrap())
-                    .unwrap()
-                    .0;
-                fen_str.push(char);
-            }
-            if (idx + 1) % 8 == 0 {
-                if streak > 0 {
-                    fen_str.push_str(&format!("{}", streak));
-                    streak = 0;
-                }
-                if idx != 63 {
-                    fen_str.push('/');
+                if (idx + 1) % 8 == 0 {
+                    if streak > 0 {
+                        fen_str.push_str(&format!("{}", streak));
+                        streak = 0;
+                    }
+                    if idx != 7 {
+                        // not the end of the 1st rank
+                        fen_str.push('/');
+                    }
                 }
             }
         }
